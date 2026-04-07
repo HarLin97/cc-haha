@@ -8,6 +8,7 @@ type SettingsStore = {
   currentModel: ModelInfo | null
   effortLevel: EffortLevel
   availableModels: ModelInfo[]
+  activeProviderName: string | null
   isLoading: boolean
 
   fetchAll: () => Promise<void>
@@ -21,18 +22,26 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   currentModel: null,
   effortLevel: 'high',
   availableModels: [],
+  activeProviderName: null,
   isLoading: false,
 
   fetchAll: async () => {
     set({ isLoading: true })
     try {
-      const [{ mode }, { models }, { model }, { level }] = await Promise.all([
+      const [{ mode }, modelsRes, { model }, { level }] = await Promise.all([
         settingsApi.getPermissionMode(),
         modelsApi.list(),
         modelsApi.getCurrent(),
         modelsApi.getEffort(),
       ])
-      set({ permissionMode: mode, availableModels: models, currentModel: model, effortLevel: level, isLoading: false })
+      set({
+        permissionMode: mode,
+        availableModels: modelsRes.models,
+        activeProviderName: modelsRes.provider?.name ?? null,
+        currentModel: model,
+        effortLevel: level,
+        isLoading: false,
+      })
     } catch {
       set({ isLoading: false })
     }

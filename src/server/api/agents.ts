@@ -98,6 +98,11 @@ async function handleAgents(
 }
 
 // ─── Tasks API ─────────────────────────────────────────────────────────────
+//
+// GET /api/tasks                         → list all tasks (across all task lists)
+// GET /api/tasks/lists                   → list all task lists with summaries
+// GET /api/tasks/lists/:taskListId       → get all tasks for a specific task list
+// GET /api/tasks/lists/:taskListId/:id   → get a single task
 
 async function handleTasksApi(
   req: Request,
@@ -111,18 +116,32 @@ async function handleTasksApi(
     )
   }
 
-  const taskId = segments[2]
+  const sub = segments[2] // 'lists' or undefined
 
-  if (taskId) {
-    // GET /api/tasks/:id
-    const task = await taskService.getTask(taskId)
-    if (!task) {
-      throw ApiError.notFound(`Task not found: ${taskId}`)
+  // GET /api/tasks/lists — list all task lists
+  if (sub === 'lists') {
+    const taskListId = segments[3]
+    const taskId = segments[4]
+
+    if (taskListId && taskId) {
+      // GET /api/tasks/lists/:taskListId/:taskId
+      const task = await taskService.getTask(taskListId, taskId)
+      if (!task) throw ApiError.notFound(`Task not found: ${taskListId}/${taskId}`)
+      return Response.json({ task })
     }
-    return Response.json({ task })
+
+    if (taskListId) {
+      // GET /api/tasks/lists/:taskListId
+      const tasks = await taskService.getTasksForList(taskListId)
+      return Response.json({ tasks })
+    }
+
+    // GET /api/tasks/lists
+    const lists = await taskService.listTaskLists()
+    return Response.json({ lists })
   }
 
-  // GET /api/tasks
+  // GET /api/tasks — list all tasks
   const tasks = await taskService.listTasks()
   return Response.json({ tasks })
 }

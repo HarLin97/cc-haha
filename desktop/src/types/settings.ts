@@ -8,7 +8,7 @@ export type ModelInfo = {
   id: string
   name: string
   description: string
-  context: number
+  context: string
 }
 
 export type UserSettings = {

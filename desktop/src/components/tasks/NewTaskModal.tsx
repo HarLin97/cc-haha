@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTaskStore } from '../../stores/taskStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 import { Modal } from '../shared/Modal'
 import { Input } from '../shared/Input'
 import { Textarea } from '../shared/Textarea'
@@ -13,17 +14,31 @@ type Props = {
 const FREQUENCY_OPTIONS = [
   { value: '0 * * * *', label: 'Hourly' },
   { value: '0 9 * * *', label: 'Daily' },
+  { value: '0 9 * * 1-5', label: 'Weekdays' },
   { value: '0 9 * * 1', label: 'Weekly' },
   { value: '0 9 1 * *', label: 'Monthly' },
 ]
 
+const PERMISSION_OPTIONS = [
+  { value: '', label: 'Default' },
+  { value: 'ask', label: 'Ask permissions' },
+  { value: 'auto-accept', label: 'Auto accept edits' },
+  { value: 'plan', label: 'Plan mode' },
+  { value: 'bypass', label: 'Bypass permissions' },
+]
+
 export function NewTaskModal({ open, onClose }: Props) {
   const { createTask } = useTaskStore()
+  const availableModels = useSettingsStore((s) => s.availableModels)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [prompt, setPrompt] = useState('')
   const [cron, setCron] = useState('0 9 * * *')
+  const [model, setModel] = useState('')
+  const [permissionMode, setPermissionMode] = useState('')
+  const [folderPath, setFolderPath] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const canSubmit = name.trim() && prompt.trim()
 
@@ -38,12 +53,19 @@ export function NewTaskModal({ open, onClose }: Props) {
         prompt: prompt.trim(),
         enabled: true,
         recurring: true,
+        model: model || undefined,
+        permissionMode: permissionMode || undefined,
+        folderPath: folderPath.trim() || undefined,
       })
       // Reset form
       setName('')
       setDescription('')
       setPrompt('')
       setCron('0 9 * * *')
+      setModel('')
+      setPermissionMode('')
+      setFolderPath('')
+      setShowAdvanced(false)
       onClose()
     } catch (err) {
       console.error('Failed to create task:', err)
@@ -51,6 +73,8 @@ export function NewTaskModal({ open, onClose }: Props) {
       setIsSubmitting(false)
     }
   }
+
+  const selectClass = 'h-10 px-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]'
 
   return (
     <Modal
@@ -99,16 +123,61 @@ export function NewTaskModal({ open, onClose }: Props) {
         {/* Frequency */}
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-[var(--color-text-primary)]">Frequency</label>
-          <select
-            value={cron}
-            onChange={(e) => setCron(e.target.value)}
-            className="h-10 px-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
-          >
+          <select value={cron} onChange={(e) => setCron(e.target.value)} className={selectClass}>
             {FREQUENCY_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         </div>
+
+        {/* Advanced toggle */}
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors self-start"
+        >
+          <span
+            className="material-symbols-outlined text-[16px] transition-transform"
+            style={{ transform: showAdvanced ? 'rotate(90deg)' : 'rotate(0deg)' }}
+          >
+            chevron_right
+          </span>
+          Advanced options
+        </button>
+
+        {showAdvanced && (
+          <div className="flex flex-col gap-4 pl-2 border-l-2 border-[var(--color-border)]">
+            {/* Model */}
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-[var(--color-text-primary)]">Model</label>
+              <select value={model} onChange={(e) => setModel(e.target.value)} className={selectClass}>
+                <option value="">Default (current model)</option>
+                {availableModels.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-[var(--color-text-tertiary)]">Override the model used for this task.</p>
+            </div>
+
+            {/* Permission Mode */}
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-[var(--color-text-primary)]">Permission mode</label>
+              <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)} className={selectClass}>
+                {PERMISSION_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Folder Path */}
+            <Input
+              label="Working directory"
+              value={folderPath}
+              onChange={(e) => setFolderPath(e.target.value)}
+              placeholder="/path/to/project"
+            />
+          </div>
+        )}
 
         <p className="text-xs text-[var(--color-text-tertiary)]">
           Scheduled tasks use a randomized delay of up to 5 minutes to avoid rate limits.

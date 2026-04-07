@@ -1,7 +1,7 @@
 import { api } from './client'
 import type { ModelInfo, EffortLevel } from '../types/settings'
 
-type ModelsResponse = { models: ModelInfo[] }
+type ModelsResponse = { models: ModelInfo[]; provider: { id: string; name: string } | null }
 type CurrentModelResponse = { model: ModelInfo }
 type EffortResponse = { level: EffortLevel; available: EffortLevel[] }
 
