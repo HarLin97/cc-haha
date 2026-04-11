@@ -12,6 +12,7 @@
 
 import * as fs from 'node:fs/promises'
 import * as fsSync from 'node:fs'
+import type { Dirent } from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import type { ImPlatform } from './attachment-types.js'
@@ -84,9 +85,11 @@ export class AttachmentStore {
     const now = Date.now()
 
     const walk = async (dir: string): Promise<void> => {
-      let entries: Awaited<ReturnType<typeof fs.readdir>>
+      let entries: Dirent<string>[]
       try {
-        entries = await fs.readdir(dir, { withFileTypes: true })
+        // Pass encoding explicitly so Dirent stays string-typed under
+        // newer @types/node where the Buffer overload becomes the default.
+        entries = await fs.readdir(dir, { withFileTypes: true, encoding: 'utf8' })
       } catch {
         return
       }

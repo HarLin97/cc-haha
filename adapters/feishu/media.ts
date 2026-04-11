@@ -12,7 +12,6 @@
 import * as Lark from '@larksuiteoapi/node-sdk'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { Readable } from 'node:stream'
 import { AttachmentStore } from '../common/attachment/attachment-store.js'
 import type { LocalAttachment } from '../common/attachment/attachment-types.js'
 
@@ -123,13 +122,13 @@ export class FeishuMediaService {
   }
 
   /** Upload an image buffer, returns image_key.
-   *  node-sdk expects `image` to be a readable stream (see OpenClaw media.ts:290).
-   *  We use Readable.from(buffer) to avoid spilling to disk for pure in-memory buffers. */
+   *  The Lark node-sdk type for `image` accepts `Buffer | ReadStream`,
+   *  so passing the buffer directly is the simplest path. */
   async uploadImage(buffer: Buffer, _mime: string): Promise<string> {
     const resp: any = await this.client.im.image.create({
       data: {
         image_type: 'message',
-        image: Readable.from(buffer),
+        image: buffer,
       },
     })
     const key = resp?.data?.image_key
@@ -137,14 +136,13 @@ export class FeishuMediaService {
     return key
   }
 
-  /** Upload a non-image file, returns file_key.
-   *  See OpenClaw media.ts:334 for stream-based upload pattern. */
+  /** Upload a non-image file, returns file_key. */
   async uploadFile(buffer: Buffer, fileName: string): Promise<string> {
     const resp: any = await this.client.im.file.create({
       data: {
         file_type: detectFeishuFileType(fileName),
         file_name: fileName,
-        file: Readable.from(buffer),
+        file: buffer,
       },
     })
     const key = resp?.data?.file_key
