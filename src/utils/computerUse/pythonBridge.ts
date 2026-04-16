@@ -19,14 +19,19 @@ const installStampPath = path.join(runtimeStateRoot, 'requirements.sha256')
 const PIP_INDEX_URL = 'https://pypi.tuna.tsinghua.edu.cn/simple/'
 const PIP_TRUSTED_HOST = 'pypi.tuna.tsinghua.edu.cn'
 
+const isWindows = process.platform === 'win32'
+
 // Always read from ~/.claude/.runtime/ — works in both dev and bundled mode.
 const requirementsPath = path.join(runtimeStateRoot, 'requirements.txt')
-const helperPath = path.join(runtimeStateRoot, 'mac_helper.py')
+const helperFileName = isWindows ? 'win_helper.py' : 'mac_helper.py'
+const helperPath = path.join(runtimeStateRoot, helperFileName)
 
 let bootstrapPromise: Promise<void> | undefined
 
 function pythonBinPath(): string {
-  return path.join(venvRoot, 'bin', 'python3')
+  return isWindows
+    ? path.join(venvRoot, 'Scripts', 'python.exe')
+    : path.join(venvRoot, 'bin', 'python3')
 }
 
 async function pathExists(target: string): Promise<boolean> {
@@ -54,8 +59,9 @@ async function runOrThrow(file: string, args: string[], label: string): Promise<
 async function ensureRuntimeFiles(): Promise<void> {
   await mkdir(runtimeStateRoot, { recursive: true })
 
-  const devRequirements = path.join(projectRoot, 'runtime', 'requirements.txt')
-  const devHelper = path.join(projectRoot, 'runtime', 'mac_helper.py')
+  const devReqFile = isWindows ? 'requirements-win.txt' : 'requirements.txt'
+  const devRequirements = path.join(projectRoot, 'runtime', devReqFile)
+  const devHelper = path.join(projectRoot, 'runtime', helperFileName)
 
   // Always sync from dev runtime/ so source changes are reflected immediately.
   // Previously this only copied when the dest was missing, causing stale files
@@ -77,10 +83,14 @@ export async function ensureBootstrapped(): Promise<void> {
 
     if (!(await pathExists(pythonBinPath()))) {
       logForDebugging('creating runtime venv at %s', { level: 'debug' })
-      await runOrThrow('python3', ['-m', 'venv', venvRoot], 'python venv creation')
+      const pythonCmd = isWindows ? 'python' : 'python3'
+      await runOrThrow(pythonCmd, ['-m', 'venv', venvRoot], 'python venv creation')
     }
 
-    if (!(await pathExists(path.join(venvRoot, 'bin', 'pip')))) {
+    const pipBin = isWindows
+      ? path.join(venvRoot, 'Scripts', 'pip.exe')
+      : path.join(venvRoot, 'bin', 'pip')
+    if (!(await pathExists(pipBin))) {
       logForDebugging('bootstrapping pip with ensurepip', { level: 'debug' })
       await runOrThrow(pythonBinPath(), ['-m', 'ensurepip', '--upgrade'], 'ensurepip')
     }

@@ -225,8 +225,8 @@ export function ComputerUseSettings() {
             />
           </div>
 
-          {/* macOS Permissions */}
-          {envReady && (
+          {/* macOS Permissions — only shown on macOS (darwin) */}
+          {envReady && status.platform === 'darwin' && (
             <>
               <StatusRow
                 label={t('settings.computerUse.accessibility')}
@@ -274,7 +274,7 @@ export function ComputerUseSettings() {
             </>
           )}
 
-          {allReady && status.permissions.accessibility && screenRecordingReady && (
+          {allReady && (status.platform !== 'darwin' || (status.permissions.accessibility && screenRecordingReady)) && (
             <div className="px-4 py-3 rounded-lg bg-green-500/10 border border-green-500/30 text-sm text-green-600 flex items-center gap-2">
               <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
               {t('settings.computerUse.allReady')}

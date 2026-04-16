@@ -236,8 +236,8 @@ export const en = {
   // Settings > Computer Use
   'settings.tab.computerUse': 'Computer Use',
   'settings.computerUse.title': 'Computer Use',
-  'settings.computerUse.description': 'Allow Claude to take screenshots, click, type, and control your computer. Requires Python 3 and macOS accessibility permissions.',
-  'settings.computerUse.notSupported': 'Computer Use is only supported on macOS.',
+  'settings.computerUse.description': 'Allow Claude to take screenshots, click, type, and control your computer. Requires Python 3. On macOS, accessibility permissions are also needed.',
+  'settings.computerUse.notSupported': 'Computer Use is only supported on macOS and Windows.',
   'settings.computerUse.python': 'Python 3',
   'settings.computerUse.pythonNotFound': 'Not installed. Please install Python 3 first.',
   'settings.computerUse.pythonFound': 'Installed',

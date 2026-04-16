@@ -238,8 +238,8 @@ export const zh: Record<TranslationKey, string> = {
   // Settings > Computer Use
   'settings.tab.computerUse': 'Computer Use',
   'settings.computerUse.title': 'Computer Use',
-  'settings.computerUse.description': '允许 Claude 截屏、点击、打字并控制你的电脑。需要 Python 3 和 macOS 辅助功能权限。',
-  'settings.computerUse.notSupported': 'Computer Use 仅支持 macOS。',
+  'settings.computerUse.description': '允许 Claude 截屏、点击、打字并控制你的电脑。需要 Python 3，macOS 上还需要辅助功能权限。',
+  'settings.computerUse.notSupported': 'Computer Use 仅支持 macOS 和 Windows。',
   'settings.computerUse.python': 'Python 3',
   'settings.computerUse.pythonNotFound': '未安装，请先安装 Python 3。',
   'settings.computerUse.pythonFound': '已安装',
