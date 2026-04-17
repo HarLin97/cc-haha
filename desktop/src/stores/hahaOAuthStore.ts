@@ -19,7 +19,7 @@ type HahaOAuthState = {
 }
 
 export const useHahaOAuthStore = create<HahaOAuthState>((set, get) => {
-  let pollTimer: ReturnType<typeof setInterval> | null = null
+  let pollTimer: ReturnType<typeof setTimeout> | null = null
 
   return {
     status: null,
@@ -53,6 +53,7 @@ export const useHahaOAuthStore = create<HahaOAuthState>((set, get) => {
     },
 
     logout: async () => {
+      get().stopPolling()
       set({ isLoading: true })
       try {
         await hahaOAuthApi.logout()
@@ -69,18 +70,26 @@ export const useHahaOAuthStore = create<HahaOAuthState>((set, get) => {
     startPolling: () => {
       if (pollTimer) return
       set({ isPolling: true })
-      pollTimer = setInterval(async () => {
-        await get().fetchStatus()
-        const cur = get().status
-        if (cur && cur.loggedIn) {
-          get().stopPolling()
-        }
-      }, POLL_INTERVAL_MS)
+
+      const scheduleNext = () => {
+        pollTimer = setTimeout(async () => {
+          await get().fetchStatus()
+          const cur = get().status
+          if (cur && cur.loggedIn) {
+            get().stopPolling()
+            return
+          }
+          if (get().isPolling) {
+            scheduleNext()
+          }
+        }, POLL_INTERVAL_MS)
+      }
+      scheduleNext()
     },
 
     stopPolling: () => {
       if (pollTimer) {
-        clearInterval(pollTimer)
+        clearTimeout(pollTimer)
         pollTimer = null
       }
       set({ isPolling: false })
