@@ -48,6 +48,15 @@ export type WechatConfig = {
   defaultWorkDir: string
 }
 
+export type DingtalkConfig = {
+  clientId: string
+  clientSecret: string
+  allowedUsers: string[]
+  pairedUsers: PairedUser[]
+  defaultWorkDir: string
+  endpoint: string
+}
+
 export type AdapterConfig = {
   serverUrl: string
   defaultProjectDir: string
@@ -55,12 +64,14 @@ export type AdapterConfig = {
   telegram: TelegramConfig
   feishu: FeishuConfig
   wechat: WechatConfig
+  dingtalk: DingtalkConfig
 }
 
 export type AdapterPlatformConfig =
   | TelegramConfig
   | FeishuConfig
   | WechatConfig
+  | DingtalkConfig
 
 function getConfigPath(): string {
   const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
@@ -83,6 +94,7 @@ export function loadConfig(): AdapterConfig {
   const tg = file.telegram ?? {}
   const fs_ = file.feishu ?? {}
   const wc = file.wechat ?? {}
+  const dt = file.dingtalk ?? {}
   const pairing = file.pairing ?? {}
   const fallbackWorkDir = resolveUserDefaultWorkDir()
 
@@ -119,6 +131,14 @@ export function loadConfig(): AdapterConfig {
       pairedUsers: wc.pairedUsers ?? [],
       defaultWorkDir: wc.defaultWorkDir || fallbackWorkDir,
     },
+    dingtalk: {
+      clientId: process.env.DINGTALK_CLIENT_ID || dt.clientId || '',
+      clientSecret: process.env.DINGTALK_CLIENT_SECRET || dt.clientSecret || '',
+      allowedUsers: dt.allowedUsers ?? [],
+      pairedUsers: dt.pairedUsers ?? [],
+      defaultWorkDir: dt.defaultWorkDir || fallbackWorkDir,
+      endpoint: process.env.DINGTALK_STREAM_ENDPOINT || dt.endpoint || 'https://api.dingtalk.com',
+    },
   }
 }
 
@@ -128,6 +148,7 @@ export function getConfiguredWorkDir(config: AdapterConfig, platformConfig: Adap
 
 function resolveUserDefaultWorkDir(): string {
   const candidates = [
+    process.env.ADAPTER_DEFAULT_PROJECT_DIR,
     process.env.CLAUDE_ADAPTER_DEFAULT_WORK_DIR,
     process.env.PWD,
     process.cwd(),

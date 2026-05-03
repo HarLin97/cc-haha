@@ -39,4 +39,12 @@ export type AdapterFileConfig = {
     pairedUsers?: PairedUser[]
     defaultWorkDir?: string
   }
+  dingtalk?: {
+    clientId?: string
+    clientSecret?: string
+    allowedUsers?: string[]
+    pairedUsers?: PairedUser[]
+    defaultWorkDir?: string
+    endpoint?: string
+  }
 }

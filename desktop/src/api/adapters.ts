@@ -1,6 +1,22 @@
 import { api } from './client'
 import type { AdapterFileConfig } from '../types/adapter'
 
+export type DingtalkRegistrationBegin = {
+  deviceCode: string
+  userCode?: string
+  verificationUri?: string
+  verificationUriComplete: string
+  expiresInSeconds: number
+  intervalSeconds: number
+  qrDataUrl?: string
+}
+
+export type DingtalkRegistrationPoll = {
+  status: 'WAITING' | 'SUCCESS' | 'FAIL' | 'EXPIRED' | 'UNKNOWN'
+  failReason?: string
+  config?: AdapterFileConfig
+}
+
 export const adaptersApi = {
   getConfig() {
     return api.get<AdapterFileConfig>('/api/adapters')
@@ -23,5 +39,13 @@ export const adaptersApi = {
 
   unbindWechat() {
     return api.post<AdapterFileConfig>('/api/adapters/wechat/unbind', {})
+  },
+
+  beginDingtalkRegistration() {
+    return api.post<DingtalkRegistrationBegin>('/api/adapters/dingtalk/registration/begin', {})
+  },
+
+  pollDingtalkRegistration(deviceCode: string) {
+    return api.post<DingtalkRegistrationPoll>('/api/adapters/dingtalk/registration/poll', { deviceCode })
   },
 }

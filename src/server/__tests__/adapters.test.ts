@@ -57,6 +57,36 @@ describe('Adapters API', () => {
     expect(json.wechat.accountId).toBe('bot-1')
   })
 
+  it('masks and preserves DingTalk client secrets', async () => {
+    const put = makeRequest('PUT', '/api/adapters', {
+      dingtalk: {
+        clientId: 'ding-client-1',
+        clientSecret: 'dingtalk-client-secret',
+        pairedUsers: [{ userId: 'ding-user', displayName: 'DingTalk User', pairedAt: 1 }],
+      },
+    })
+    expect((await handleAdaptersApi(put.req, put.url, put.segments)).status).toBe(200)
+
+    const get = makeRequest('GET', '/api/adapters')
+    const res = await handleAdaptersApi(get.req, get.url, get.segments)
+    expect(res.status).toBe(200)
+    const json = await res.json() as any
+    expect(json.dingtalk.clientSecret).toBe('****cret')
+    expect(json.dingtalk.clientId).toBe('ding-client-1')
+
+    const maskedPut = makeRequest('PUT', '/api/adapters', {
+      dingtalk: {
+        clientSecret: json.dingtalk.clientSecret,
+        allowedUsers: ['ding-user'],
+      },
+    })
+    expect((await handleAdaptersApi(maskedPut.req, maskedPut.url, maskedPut.segments)).status).toBe(200)
+
+    const raw = JSON.parse(await fs.readFile(path.join(tmpDir, 'adapters.json'), 'utf-8')) as any
+    expect(raw.dingtalk.clientSecret).toBe('dingtalk-client-secret')
+    expect(raw.dingtalk.allowedUsers).toEqual(['ding-user'])
+  })
+
   it('clears WeChat credentials on unbind', async () => {
     const put = makeRequest('PUT', '/api/adapters', {
       wechat: {

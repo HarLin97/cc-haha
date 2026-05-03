@@ -1,0 +1,494 @@
+/**
+ * DingTalk Adapter for Claude Code Desktop.
+ *
+ * Uses DingTalk Stream to receive bot messages without a public webhook.
+ * The desktop Settings page stores clientId/clientSecret via QR registration.
+ */
+
+import path from 'node:path'
+import { DWClient, TOPIC_ROBOT } from 'dingtalk-stream'
+import { WsBridge, type ServerMessage } from '../common/ws-bridge.js'
+import { MessageDedup } from '../common/message-dedup.js'
+import { MessageBuffer } from '../common/message-buffer.js'
+import { enqueue } from '../common/chat-queue.js'
+import { getConfiguredWorkDir, loadConfig } from '../common/config.js'
+import { formatImHelp, formatImStatus, formatPermissionRequest, splitMessage } from '../common/format.js'
+import { SessionStore } from '../common/session-store.js'
+import { AdapterHttpClient, type RecentProject } from '../common/http-client.js'
+import { isAllowedUser, tryPair } from '../common/pairing.js'
+import {
+  extractDingTalkText,
+  getDingTalkChatId,
+  getDingTalkSenderId,
+  isDingTalkDirectMessage,
+  parseDingTalkPayload,
+  type DingTalkRobotMessage,
+} from './helpers.js'
+
+const DINGTALK_API = 'https://api.dingtalk.com'
+
+const config = loadConfig()
+if (!config.dingtalk.clientId || !config.dingtalk.clientSecret) {
+  console.error('[DingTalk] Missing DINGTALK_CLIENT_ID / DINGTALK_CLIENT_SECRET. Bind with QR auth in Desktop Settings or set env.')
+  process.exit(1)
+}
+const defaultWorkDir = getConfiguredWorkDir(config, config.dingtalk)
+
+const bridge = new WsBridge(config.serverUrl, 'dingtalk')
+const dedup = new MessageDedup()
+const sessionStore = new SessionStore()
+const httpClient = new AdapterHttpClient(config.serverUrl)
+const sessionWebhooks = new Map<string, string>()
+const pendingProjectSelection = new Map<string, boolean>()
+const runtimeStates = new Map<string, ChatRuntimeState>()
+const responseBuffers = new Map<string, MessageBuffer>()
+const pendingPermissions = new Map<string, Set<string>>()
+
+let accessTokenCache: { token: string; expiresAt: number } | null = null
+
+type ChatRuntimeState = {
+  state: 'idle' | 'thinking' | 'streaming' | 'tool_executing' | 'permission_pending'
+  verb?: string
+  model?: string
+  pendingPermissionCount: number
+}
+
+function getRuntimeState(chatId: string): ChatRuntimeState {
+  let state = runtimeStates.get(chatId)
+  if (!state) {
+    state = { state: 'idle', pendingPermissionCount: 0 }
+    runtimeStates.set(chatId, state)
+  }
+  return state
+}
+
+async function getAccessToken(): Promise<string> {
+  const now = Date.now()
+  if (accessTokenCache && accessTokenCache.expiresAt > now + 60_000) {
+    return accessTokenCache.token
+  }
+
+  const res = await fetch(`${DINGTALK_API}/v1.0/oauth2/accessToken`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      appKey: config.dingtalk.clientId,
+      appSecret: config.dingtalk.clientSecret,
+    }),
+  })
+  const data = await res.json().catch(() => null) as { accessToken?: string; expireIn?: number; message?: string } | null
+  if (!res.ok || !data?.accessToken) {
+    throw new Error(data?.message || `accessToken request failed: ${res.status}`)
+  }
+
+  accessTokenCache = {
+    token: data.accessToken,
+    expiresAt: now + Number(data.expireIn ?? 7200) * 1000,
+  }
+  return data.accessToken
+}
+
+async function sendText(chatId: string, text: string): Promise<void> {
+  const sessionWebhook = sessionWebhooks.get(chatId)
+  if (!sessionWebhook) {
+    console.warn(`[DingTalk] Missing sessionWebhook for ${chatId}; cannot send response`)
+    return
+  }
+
+  const token = await getAccessToken()
+  for (const chunk of splitMessage(text, 3500)) {
+    const res = await fetch(sessionWebhook, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-acs-dingtalk-access-token': token,
+      },
+      body: JSON.stringify({
+        msgtype: 'markdown',
+        markdown: {
+          title: 'Claude Code',
+          text: chunk,
+        },
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      console.warn(`[DingTalk] sendText failed: ${res.status} ${body}`)
+    }
+  }
+}
+
+function getResponseBuffer(chatId: string): MessageBuffer {
+  let buffer = responseBuffers.get(chatId)
+  if (!buffer) {
+    buffer = new MessageBuffer(
+      async (text) => sendText(chatId, text),
+      900,
+      1200,
+    )
+    responseBuffers.set(chatId, buffer)
+  }
+  return buffer
+}
+
+function clearTransientChatState(chatId: string): void {
+  responseBuffers.get(chatId)?.reset()
+  responseBuffers.delete(chatId)
+  const runtime = getRuntimeState(chatId)
+  runtime.state = 'idle'
+  runtime.verb = undefined
+  runtime.pendingPermissionCount = 0
+}
+
+async function ensureExistingSession(chatId: string): Promise<{ sessionId: string; workDir: string } | null> {
+  const stored = sessionStore.get(chatId)
+  if (!stored) return null
+
+  if (!bridge.hasSession(chatId)) {
+    bridge.connectSession(chatId, stored.sessionId)
+    bridge.onServerMessage(chatId, (msg) => handleServerMessage(chatId, msg))
+    const opened = await bridge.waitForOpen(chatId)
+    if (!opened) return null
+  }
+
+  return stored
+}
+
+async function buildStatusText(chatId: string): Promise<string> {
+  const stored = await ensureExistingSession(chatId)
+  if (!stored) return formatImStatus(null)
+
+  const runtime = getRuntimeState(chatId)
+  let projectName = path.basename(stored.workDir) || stored.workDir
+  let branch: string | null = null
+
+  try {
+    const gitInfo = await httpClient.getGitInfo(stored.sessionId)
+    projectName = gitInfo.repoName || path.basename(gitInfo.workDir) || projectName
+    branch = gitInfo.branch
+  } catch {
+    // Status should still be useful when git lookup fails.
+  }
+
+  let taskCounts:
+    | {
+        total: number
+        pending: number
+        inProgress: number
+        completed: number
+      }
+    | undefined
+
+  try {
+    const tasks = await httpClient.getTasksForSession(stored.sessionId)
+    if (tasks.length > 0) {
+      taskCounts = {
+        total: tasks.length,
+        pending: tasks.filter((task) => task.status === 'pending').length,
+        inProgress: tasks.filter((task) => task.status === 'in_progress').length,
+        completed: tasks.filter((task) => task.status === 'completed').length,
+      }
+    }
+  } catch {
+    // Ignore task lookup failures.
+  }
+
+  return formatImStatus({
+    sessionId: stored.sessionId,
+    projectName,
+    branch,
+    model: runtime.model,
+    state: runtime.state,
+    verb: runtime.verb,
+    pendingPermissionCount: runtime.pendingPermissionCount,
+    taskCounts,
+  })
+}
+
+async function ensureSession(chatId: string): Promise<boolean> {
+  if (bridge.hasSession(chatId)) return true
+
+  const stored = sessionStore.get(chatId)
+  if (stored) {
+    bridge.connectSession(chatId, stored.sessionId)
+    bridge.onServerMessage(chatId, (msg) => handleServerMessage(chatId, msg))
+    return await bridge.waitForOpen(chatId)
+  }
+
+  return await createSessionForChat(chatId, defaultWorkDir)
+}
+
+async function createSessionForChat(chatId: string, workDir: string): Promise<boolean> {
+  try {
+    bridge.resetSession(chatId)
+    responseBuffers.get(chatId)?.reset()
+    responseBuffers.delete(chatId)
+
+    const sessionId = await httpClient.createSession(workDir)
+    sessionStore.set(chatId, sessionId, workDir)
+    bridge.connectSession(chatId, sessionId)
+    bridge.onServerMessage(chatId, (msg) => handleServerMessage(chatId, msg))
+    const opened = await bridge.waitForOpen(chatId)
+    if (!opened) {
+      await sendText(chatId, '⚠️ 连接服务器超时，请重试。')
+      return false
+    }
+    return true
+  } catch (err) {
+    await sendText(chatId, `❌ 无法创建会话: ${err instanceof Error ? err.message : String(err)}`)
+    return false
+  }
+}
+
+function formatProjectList(projects: RecentProject[]): string {
+  const lines = projects.slice(0, 10).map((project, index) => {
+    const branch = project.branch ? ` (${project.branch})` : ''
+    return `${index + 1}. **${project.projectName}**${branch}\n   ${project.realPath}`
+  })
+  return `选择项目（回复编号）：\n\n${lines.join('\n\n')}\n\n也可以发送 /new <编号或名称>`
+}
+
+async function showProjectPicker(chatId: string): Promise<void> {
+  try {
+    const projects = await httpClient.listRecentProjects()
+    if (projects.length === 0) {
+      await sendText(chatId, `没有找到最近的项目。发送 /new 会使用默认工作目录：${defaultWorkDir}\n也可以发送 /new /path/to/project 指定项目。`)
+      return
+    }
+    pendingProjectSelection.set(chatId, true)
+    await sendText(chatId, formatProjectList(projects))
+  } catch (err) {
+    await sendText(chatId, `❌ 无法获取项目列表: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+async function startNewSession(chatId: string, query?: string): Promise<void> {
+  bridge.resetSession(chatId)
+  sessionStore.delete(chatId)
+  clearTransientChatState(chatId)
+  pendingProjectSelection.delete(chatId)
+  runtimeStates.delete(chatId)
+
+  if (query) {
+    try {
+      const { project, ambiguous } = await httpClient.matchProject(query)
+      if (project) {
+        const ok = await createSessionForChat(chatId, project.realPath)
+        if (ok) await sendText(chatId, `✅ 已新建会话：**${project.projectName}**${project.branch ? ` (${project.branch})` : ''}`)
+        return
+      }
+      if (ambiguous) {
+        const list = ambiguous.map((project, index) => `${index + 1}. **${project.projectName}** — ${project.realPath}`).join('\n')
+        await sendText(chatId, `匹配到多个项目，请更精确：\n\n${list}`)
+        return
+      }
+      await sendText(chatId, `未找到匹配 "${query}" 的项目。发送 /projects 查看完整列表。`)
+    } catch (err) {
+      await sendText(chatId, `❌ ${err instanceof Error ? err.message : String(err)}`)
+    }
+    return
+  }
+
+  const ok = await createSessionForChat(chatId, defaultWorkDir)
+  if (ok) await sendText(chatId, '✅ 已新建会话，可以开始对话了。')
+}
+
+async function handleServerMessage(chatId: string, msg: ServerMessage): Promise<void> {
+  const runtime = getRuntimeState(chatId)
+
+  switch (msg.type) {
+    case 'connected':
+      break
+    case 'status':
+      runtime.state = msg.state
+      runtime.verb = typeof msg.verb === 'string' ? msg.verb : undefined
+      break
+    case 'content_start':
+      if (msg.blockType === 'text') runtime.state = 'streaming'
+      if (msg.blockType === 'tool_use') runtime.state = 'tool_executing'
+      break
+    case 'content_delta':
+      if (typeof msg.text === 'string' && msg.text) getResponseBuffer(chatId).append(msg.text)
+      break
+    case 'tool_use_complete':
+      runtime.state = 'streaming'
+      break
+    case 'permission_request': {
+      runtime.pendingPermissionCount += 1
+      runtime.state = 'permission_pending'
+      const set = pendingPermissions.get(chatId) ?? new Set<string>()
+      set.add(msg.requestId)
+      pendingPermissions.set(chatId, set)
+      await sendText(chatId, `${formatPermissionRequest(msg.toolName, msg.input, msg.requestId)}\n\n回复 /allow ${msg.requestId} 允许，或 /deny ${msg.requestId} 拒绝。`)
+      break
+    }
+    case 'message_complete':
+      runtime.state = 'idle'
+      runtime.verb = undefined
+      await responseBuffers.get(chatId)?.complete()
+      break
+    case 'error':
+      runtime.state = 'idle'
+      runtime.verb = undefined
+      responseBuffers.get(chatId)?.reset()
+      await sendText(chatId, `❌ ${msg.message}`)
+      break
+    case 'system_notification':
+      if (msg.subtype === 'init' && msg.data && typeof msg.data === 'object') {
+        const model = (msg.data as Record<string, unknown>).model
+        if (typeof model === 'string' && model.trim()) runtime.model = model
+      }
+      break
+  }
+}
+
+function handlePermissionCommand(chatId: string, text: string): boolean {
+  const match = text.match(/^\/(allow|deny)\s+(\S+)/i)
+  if (!match) return false
+
+  const [, action, requestId] = match
+  const pending = pendingPermissions.get(chatId)
+  if (!pending?.has(requestId!)) {
+    void sendText(chatId, `未找到待确认的权限请求：${requestId}`)
+    return true
+  }
+
+  const allowed = action?.toLowerCase() === 'allow'
+  bridge.sendPermissionResponse(chatId, requestId!, allowed)
+  pending.delete(requestId!)
+  const runtime = getRuntimeState(chatId)
+  runtime.pendingPermissionCount = Math.max(0, runtime.pendingPermissionCount - 1)
+  void sendText(chatId, allowed ? '✅ 已允许' : '❌ 已拒绝')
+  return true
+}
+
+async function routeUserMessage(chatId: string, text: string): Promise<void> {
+  enqueue(chatId, async () => {
+    const trimmed = text.trim()
+
+    if (handlePermissionCommand(chatId, trimmed)) return
+
+    if (pendingProjectSelection.has(chatId)) {
+      if (trimmed) await startNewSession(chatId, trimmed)
+      return
+    }
+
+    if (trimmed === '/new' || trimmed === '新会话' || trimmed.startsWith('/new ')) {
+      const arg = trimmed.startsWith('/new ') ? trimmed.slice(5).trim() : ''
+      await startNewSession(chatId, arg || undefined)
+      return
+    }
+    if (trimmed === '/help' || trimmed === '帮助') {
+      await sendText(chatId, formatImHelp())
+      return
+    }
+    if (trimmed === '/status' || trimmed === '状态') {
+      await sendText(chatId, await buildStatusText(chatId))
+      return
+    }
+    if (trimmed === '/clear' || trimmed === '清空') {
+      const stored = await ensureExistingSession(chatId)
+      if (!stored) {
+        await sendText(chatId, formatImStatus(null))
+        return
+      }
+      clearTransientChatState(chatId)
+      if (!bridge.sendUserMessage(chatId, '/clear')) {
+        await sendText(chatId, '⚠️ 无法发送 /clear，请先发送 /new 重新连接会话。')
+        return
+      }
+      await sendText(chatId, '🧹 已清空当前会话上下文。')
+      return
+    }
+    if (trimmed === '/stop' || trimmed === '停止') {
+      const stored = await ensureExistingSession(chatId)
+      if (!stored) {
+        await sendText(chatId, formatImStatus(null))
+        return
+      }
+      bridge.sendStopGeneration(chatId)
+      await sendText(chatId, '⏹ 已发送停止信号。')
+      return
+    }
+    if (trimmed === '/projects' || trimmed === '项目列表') {
+      await showProjectPicker(chatId)
+      return
+    }
+
+    const ready = await ensureSession(chatId)
+    if (!ready || !trimmed) return
+    if (!bridge.sendUserMessage(chatId, trimmed)) {
+      await sendText(chatId, '⚠️ 消息发送失败，连接可能已断开。请发送 /new 重新开始。')
+    }
+  })
+}
+
+async function handleRobotMessage(data: DingTalkRobotMessage): Promise<void> {
+  if (!isDingTalkDirectMessage(data)) return
+
+  const chatId = getDingTalkChatId(data)
+  const userId = getDingTalkSenderId(data)
+  const text = extractDingTalkText(data)
+  if (!chatId || !userId || !text) return
+
+  if (data.sessionWebhook) sessionWebhooks.set(chatId, data.sessionWebhook)
+
+  if (!isAllowedUser('dingtalk', userId)) {
+    const success = tryPair(text, { userId, displayName: data.senderNick || 'DingTalk User' }, 'dingtalk')
+    await sendText(
+      chatId,
+      success
+        ? '✅ 配对成功！现在可以开始聊天了。\n\n发送消息即可与 Claude 对话。'
+        : '🔒 未授权。请先在 Claude Code 桌面端完成钉钉扫码绑定，再生成 IM 配对码后发送给我。',
+    )
+    return
+  }
+
+  await routeUserMessage(chatId, text)
+}
+
+async function start(): Promise<void> {
+  const client = new DWClient({
+    clientId: config.dingtalk.clientId,
+    clientSecret: config.dingtalk.clientSecret,
+    endpoint: config.dingtalk.endpoint,
+    autoReconnect: true,
+    keepAlive: true,
+  } as any)
+
+  client.registerCallbackListener(TOPIC_ROBOT, async (res: any) => {
+    const messageId = res.headers?.messageId
+    if (messageId) {
+      client.socketCallBackResponse(messageId, { success: true })
+      if (!dedup.tryRecord(`header:${messageId}`)) return
+    }
+
+    const data = parseDingTalkPayload(res.data)
+    if (!data) return
+    if (data.msgId && !dedup.tryRecord(`body:${data.msgId}`)) return
+
+    await handleRobotMessage(data)
+  })
+
+  await client.connect()
+  console.log(`[DingTalk] Stream connected. Server: ${config.serverUrl}`)
+
+  const shutdown = async () => {
+    console.log('[DingTalk] Shutting down...')
+    bridge.destroy()
+    dedup.destroy()
+    try {
+      await client.disconnect()
+    } catch {
+      // ignore
+    }
+    process.exit(0)
+  }
+  process.once('SIGINT', () => void shutdown())
+  process.once('SIGTERM', () => void shutdown())
+}
+
+start().catch((err) => {
+  console.error('[DingTalk] Fatal:', err instanceof Error ? err.message : err)
+  process.exit(1)
+})

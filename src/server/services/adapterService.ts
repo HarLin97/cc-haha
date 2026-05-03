@@ -51,6 +51,14 @@ export type AdapterFileConfig = {
     pairedUsers?: PairedUser[]
     defaultWorkDir?: string
   }
+  dingtalk?: {
+    clientId?: string
+    clientSecret?: string
+    allowedUsers?: string[]
+    pairedUsers?: PairedUser[]
+    defaultWorkDir?: string
+    endpoint?: string
+  }
 }
 
 function getConfigPath(): string {
@@ -96,6 +104,9 @@ class AdapterService {
     if (config.wechat?.botToken) {
       config.wechat.botToken = maskSecret(config.wechat.botToken)
     }
+    if (config.dingtalk?.clientSecret) {
+      config.dingtalk.clientSecret = maskSecret(config.dingtalk.clientSecret)
+    }
     if (config.pairing?.code) {
       config.pairing.code = '******'
     }
@@ -118,6 +129,9 @@ class AdapterService {
     if (patch.wechat && isMasked(patch.wechat.botToken)) {
       patch.wechat.botToken = current.wechat?.botToken
     }
+    if (patch.dingtalk && isMasked(patch.dingtalk.clientSecret)) {
+      patch.dingtalk.clientSecret = current.dingtalk?.clientSecret
+    }
     if (patch.pairing && isMasked(patch.pairing.code ?? undefined)) {
       patch.pairing.code = current.pairing?.code
     }
@@ -128,6 +142,7 @@ class AdapterService {
       telegram: patch.telegram ? { ...current.telegram, ...patch.telegram } : current.telegram,
       feishu: patch.feishu ? { ...current.feishu, ...patch.feishu } : current.feishu,
       wechat: patch.wechat ? { ...current.wechat, ...patch.wechat } : current.wechat,
+      dingtalk: patch.dingtalk ? { ...current.dingtalk, ...patch.dingtalk } : current.dingtalk,
       pairing: patch.pairing !== undefined ? { ...current.pairing, ...patch.pairing } : current.pairing,
     }
 

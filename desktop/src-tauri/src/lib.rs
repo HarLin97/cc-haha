@@ -64,7 +64,7 @@ struct StoredWindowState {
 
 /// 与 ServerState 平级的 adapter 子进程状态。
 ///
-/// adapter sidecar（claude-sidecar adapters --feishu --telegram --wechat）的生命周期
+/// adapter sidecar（claude-sidecar adapters --feishu --telegram --wechat --dingtalk）的生命周期
 /// 跟 server 不同：它没有 HTTP 端口可探活，没配凭据时会自己干净退出，
 /// 而且需要支持运行时热重启 —— 用户在设置页保存飞书 / Telegram 凭据后，
 /// 前端会通过 invoke('restart_adapters_sidecar') 来重启它，让新凭据生效。
@@ -989,6 +989,7 @@ fn start_adapters_sidecar(app: &AppHandle) -> Result<CommandChild, String> {
         "--feishu",
         "--telegram",
         "--wechat",
+        "--dingtalk",
     ]);
 
     let (mut rx, child) = sidecar
