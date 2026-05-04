@@ -330,7 +330,7 @@ function getAzureOpenAICodexOptions(): ModelOption[] {
 }
 
 function getOpenAIModelOptions(): ModelOption[] {
-  return [
+  const options = [
     getDefaultOptionForUser(),
     ...OPENAI_CODEX_MODEL_CATALOG.map(model => ({
       value: model.value,

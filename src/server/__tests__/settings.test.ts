@@ -13,9 +13,13 @@ import { handleStatusApi, resetUsage, addUsage } from '../api/status.js'
 import { ProviderService } from '../services/providerService.js'
 import {
   clearOpenAIOAuthTokenCache,
-  deleteOpenAIOAuthTokens,
-  saveOpenAIOAuthTokens,
 } from '../../services/openaiAuth/storage.js'
+import { plainTextStorage } from '../../utils/secureStorage/plainTextStorage.js'
+import {
+  clearKeychainCache,
+  primeKeychainCacheFromPrefetch,
+} from '../../utils/secureStorage/macOsKeychainHelpers.js'
+import type { OpenAIOAuthTokens } from '../../services/openaiAuth/types.js'
 import { getModelOptions } from '../../utils/model/modelOptions.js'
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -59,10 +63,16 @@ async function setup() {
   delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
   delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
   delete process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
+  clearKeychainCache()
+  primeKeychainCacheFromPrefetch(null)
   clearOpenAIOAuthTokenCache()
 }
 
 async function teardown() {
+  plainTextStorage.delete()
+  clearKeychainCache()
+  clearOpenAIOAuthTokenCache()
+
   if (originalConfigDir !== undefined) {
     process.env.CLAUDE_CONFIG_DIR = originalConfigDir
   } else {
@@ -135,10 +145,12 @@ async function teardown() {
     delete process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
   }
 
-  deleteOpenAIOAuthTokens()
-  clearOpenAIOAuthTokenCache()
-
   await fs.rm(tmpDir, { recursive: true, force: true })
+}
+
+function saveTestOpenAIOAuthTokens(tokens: OpenAIOAuthTokens) {
+  plainTextStorage.update({ openaiCodexOauth: tokens })
+  clearOpenAIOAuthTokenCache()
 }
 
 /** 创建一个模拟 Request */
@@ -395,7 +407,7 @@ describe('Models API', () => {
     process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = 'deepseek-v4-flash'
     process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'deepseek-v4-pro'
     process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = 'deepseek-v4-pro'
-    saveOpenAIOAuthTokens({
+    saveTestOpenAIOAuthTokens({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       expiresAt: Date.now() + 60_000,
@@ -564,7 +576,7 @@ describe('Model Options', () => {
     process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = 'deepseek-v4-flash'
     process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'deepseek-v4-pro'
     process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = 'deepseek-v4-pro'
-    saveOpenAIOAuthTokens({
+    saveTestOpenAIOAuthTokens({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       expiresAt: Date.now() + 60_000,

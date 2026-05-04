@@ -20,7 +20,6 @@ import { MarkdownRenderer } from '../markdown/MarkdownRenderer'
 import {
   getFileExtension,
   normalizePrismLanguage,
-  WORKSPACE_PLAIN_TEXT_LINE_THRESHOLD,
   WORKSPACE_PREVIEW_LINE_LIMIT,
   WorkspaceDiffSurface,
   workspacePrismTheme,
@@ -321,7 +320,7 @@ function CodeSurface({
   const lines = value.split('\n')
   const visibleLines = showAllLines ? lines : lines.slice(0, WORKSPACE_PREVIEW_LINE_LIMIT)
   const activeQuote = commentLine ? visibleLines[commentLine - 1] ?? '' : ''
-  const usePlainLargePreview = showAllLines && lines.length > WORKSPACE_PLAIN_TEXT_LINE_THRESHOLD
+  const usePlainLargePreview = showAllLines && lines.length > WORKSPACE_PREVIEW_LINE_LIMIT
   const visibleCode = usePlainLargePreview ? '' : visibleLines.join('\n')
 
   useEffect(() => {
