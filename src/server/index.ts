@@ -14,6 +14,7 @@ import { cronScheduler } from './services/cronScheduler.js'
 import { handleProxyRequest } from './proxy/handler.js'
 import { ProviderService } from './services/providerService.js'
 import { handleHahaOAuthCallback } from './api/haha-oauth.js'
+import { handleHahaOpenAIOAuthCallback } from './api/haha-openai-oauth.js'
 import { ensureDesktopCliLauncherInstalled } from './services/desktopCliLauncherService.js'
 import { enableConfigs } from '../utils/config.js'
 import { diagnosticsService } from './services/diagnosticsService.js'
@@ -137,6 +138,10 @@ export function startServer(port = PORT, host = HOST) {
 
       if (url.pathname === '/callback') {
         return handleHahaOAuthCallback(url)
+      }
+
+      if (url.pathname === '/callback/openai') {
+        return handleHahaOpenAIOAuthCallback(url)
       }
 
       // REST API
