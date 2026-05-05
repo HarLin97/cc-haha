@@ -567,7 +567,7 @@ async function handleRobotMessage(data: DingTalkRobotMessage): Promise<void> {
     await sendText(
       chatId,
       success
-        ? '✅ 配对成功！现在可以开始聊天了。\n\n发送消息即可与 Claude 对话。'
+        ? '✅ 配对成功！现在可以开始聊天了。\n\n发送消息即可与 Claude 对话。发送 /help 查看可用命令。'
         : '🔒 未授权。请先在 Claude Code 桌面端完成钉钉扫码绑定，再生成 IM 配对码后发送给我。',
     )
     return
