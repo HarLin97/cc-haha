@@ -101,10 +101,12 @@ describe('provider presets API', () => {
     expect(jiekouai?.defaultModels.main).toBe('claude-sonnet-4-6')
     expect(jiekouai?.defaultModels.opus).toBe('claude-opus-4-7')
     expect(jiekouai?.defaultEnv?.ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES).toBe('none')
+    expect(jiekouai?.modelContextWindows?.['claude-sonnet-4-6']).toBe(1000000)
     expect(shengsuanyun?.baseUrl).toBe('https://router.shengsuanyun.com/api')
     expect(shengsuanyun?.authStrategy).toBe('auth_token')
     expect(shengsuanyun?.defaultModels.main).toBe('anthropic/claude-sonnet-4.6')
     expect(shengsuanyun?.defaultModels.haiku).toBe('anthropic/claude-haiku-4.5:thinking')
+    expect(shengsuanyun?.modelContextWindows?.['anthropic/claude-sonnet-4.6']).toBe(1000000)
   })
 
   test('configured presets can expose optional API key and promo metadata', () => {

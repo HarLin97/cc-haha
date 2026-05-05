@@ -136,7 +136,7 @@
       "ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES": "none"
     },
     "modelContextWindows": {
-      "claude-sonnet-4-6": 200000,
+      "claude-sonnet-4-6": 1000000,
       "claude-haiku-4-5-20251001": 200000,
       "claude-haiku-4-5": 200000,
       "claude-opus-4-7": 1000000
@@ -165,7 +165,7 @@
       "ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES": "none"
     },
     "modelContextWindows": {
-      "anthropic/claude-sonnet-4.6": 200000,
+      "anthropic/claude-sonnet-4.6": 1000000,
       "anthropic/claude-haiku-4.5:thinking": 200000,
       "anthropic/claude-opus-4.7": 1000000
     }

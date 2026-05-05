@@ -462,7 +462,7 @@ describe('ProviderService', () => {
       expect(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe('1')
       expect(env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBeUndefined()
       expect(JSON.parse(env.CLAUDE_CODE_MODEL_CONTEXT_WINDOWS)).toEqual({
-        'anthropic/claude-sonnet-4.6': 200000,
+        'anthropic/claude-sonnet-4.6': 1000000,
         'anthropic/claude-haiku-4.5:thinking': 200000,
         'anthropic/claude-opus-4.7': 1000000,
       })
@@ -472,7 +472,7 @@ describe('ProviderService', () => {
       expect(runtimeEnv.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe('1')
       expect(runtimeEnv.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBeUndefined()
       expect(JSON.parse(runtimeEnv.CLAUDE_CODE_MODEL_CONTEXT_WINDOWS)).toEqual({
-        'anthropic/claude-sonnet-4.6': 200000,
+        'anthropic/claude-sonnet-4.6': 1000000,
         'anthropic/claude-haiku-4.5:thinking': 200000,
         'anthropic/claude-opus-4.7': 1000000,
       })
