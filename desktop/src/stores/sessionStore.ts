@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { sessionsApi, type CreateSessionRepositoryOptions } from '../api/sessions'
 import { useSessionRuntimeStore } from './sessionRuntimeStore'
+import { useTabStore } from './tabStore'
 import type { SessionListItem } from '../types/session'
 import { isPlaceholderSessionTitle } from '../lib/sessionTitle'
 
@@ -37,6 +38,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const { sessions: raw } = await sessionsApi.list({ project, limit: 100 })
+      let syncedSessions: SessionListItem[] = []
       set((state) => {
         const currentById = new Map(state.sessions.map((session) => [session.id, session]))
         // Deduplicate by session ID - keep the most recently modified entry.
@@ -50,9 +52,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           }
         }
         const sessions = [...byId.values()]
+        syncedSessions = sessions
         const availableProjects = [...new Set(sessions.map((s) => s.projectPath).filter(Boolean))].sort()
         return { sessions, availableProjects, isLoading: false }
       })
+      syncOpenSessionTabTitles(syncedSessions)
     } catch (err) {
       set({ error: (err as Error).message, isLoading: false })
     }
@@ -125,4 +129,16 @@ function preserveLocalTitle(
     return { ...incoming, title: current.title }
   }
   return incoming
+}
+
+function syncOpenSessionTabTitles(sessions: SessionListItem[]): void {
+  const titleById = new Map(sessions.map((session) => [session.id, session.title]))
+  const { tabs, updateTabTitle } = useTabStore.getState()
+  for (const tab of tabs) {
+    if (tab.type !== 'session') continue
+    const title = titleById.get(tab.sessionId)
+    if (title && title !== tab.title) {
+      updateTabTitle(tab.sessionId, title)
+    }
+  }
 }

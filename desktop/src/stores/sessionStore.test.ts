@@ -15,6 +15,7 @@ vi.mock('../api/sessions', () => ({
 }))
 
 import { useSessionStore } from './sessionStore'
+import { useTabStore } from './tabStore'
 
 const initialState = useSessionStore.getState()
 
@@ -43,10 +44,12 @@ describe('sessionStore', () => {
       selectedProjects: [],
       availableProjects: [],
     })
+    useTabStore.setState({ tabs: [], activeTabId: null })
   })
 
   afterEach(() => {
     useSessionStore.setState(initialState)
+    useTabStore.setState({ tabs: [], activeTabId: null })
   })
 
   it('returns a new session id before the background refresh completes', async () => {
@@ -109,6 +112,27 @@ describe('sessionStore', () => {
     await delay(0)
 
     expect(useSessionStore.getState().sessions[0]?.title).toBe('开始优化UI')
+  })
+
+  it('syncs refreshed session titles into already-open tabs', async () => {
+    useTabStore.getState().openTab('session-title-2', '```json {"title":')
+    listMock.mockResolvedValue({
+      sessions: [{
+        id: 'session-title-2',
+        title: '使用bash写一个shell，随便写点什么东西',
+        createdAt: '2026-05-07T00:00:00.000Z',
+        modifiedAt: '2026-05-07T00:00:01.000Z',
+        messageCount: 3,
+        projectPath: '',
+        workDir: '/workspace/project',
+        workDirExists: true,
+      }],
+      total: 1,
+    })
+
+    await useSessionStore.getState().fetchSessions()
+
+    expect(useTabStore.getState().tabs[0]?.title).toBe('使用bash写一个shell，随便写点什么东西')
   })
 
   it('forwards direct branch switch repository options when creating a session', async () => {
