@@ -546,9 +546,9 @@ export function EmptySession() {
       </div>
 
       <div className="absolute bottom-4 left-0 right-0 flex justify-center px-8">
-        <div className="flex w-full max-w-3xl flex-col gap-2">
+        <div className="flex w-full max-w-3xl flex-col">
           <div
-            className="glass-panel relative flex flex-col gap-3 rounded-xl p-4"
+            className="glass-panel relative flex flex-col gap-3 rounded-t-xl rounded-b-none p-4"
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleDrop}
           >

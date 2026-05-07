@@ -303,4 +303,93 @@ describe('EmptySession', () => {
       })
     })
   })
+
+  it('keeps the repository launch context on one row and truncates long branch names', async () => {
+    const longBranch = 'feature/super-long-branch-name-for-repository-launch-controls-e2e'
+    mocks.getRepositoryContext.mockResolvedValueOnce(okRepositoryContext({
+      currentBranch: longBranch,
+      defaultBranch: 'main',
+      branches: [{
+        name: longBranch,
+        current: true,
+        local: true,
+        remote: false,
+        checkedOut: true,
+        worktreePath: '/workspace/project',
+      }],
+      worktrees: [{
+        path: '/workspace/project',
+        branch: longBranch,
+        current: true,
+      }],
+    }))
+
+    render(<EmptySession />)
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'draft question', selectionStart: 14 },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick project' }))
+
+    const branchButton = await screen.findByRole('button', { name: new RegExp(`Select branch: ${longBranch}`) })
+    const branchClasses = branchButton.className.split(/\s+/)
+    expect(branchButton.parentElement?.className).toContain('flex-nowrap')
+    expect(branchButton.parentElement?.className).not.toContain('flex-wrap')
+    expect(branchClasses).toContain('max-w-[260px]')
+    expect(branchClasses).not.toContain('max-w-full')
+    expect(branchButton.querySelector('span')?.className).toContain('truncate')
+  })
+
+  it('defaults to isolated worktree when the fallback branch is checked out elsewhere', async () => {
+    mocks.getRepositoryContext.mockResolvedValueOnce(okRepositoryContext({
+      currentBranch: null,
+      defaultBranch: 'main',
+      branches: [
+        {
+          name: 'main',
+          current: false,
+          local: true,
+          remote: false,
+          checkedOut: true,
+          worktreePath: '/workspace/project',
+        },
+        {
+          name: 'feature/a',
+          current: false,
+          local: true,
+          remote: false,
+          checkedOut: false,
+        },
+      ],
+      worktrees: [{
+        path: '/workspace/project/.codex/worktrees/detached/project',
+        branch: null,
+        current: true,
+      }],
+    }))
+
+    render(<EmptySession />)
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'draft question', selectionStart: 14 },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick project' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('main')).toBeInTheDocument()
+      expect(screen.getByText('Isolated worktree')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Select worktree mode: Isolated worktree/ }))
+    expect(await screen.findByRole('option', { name: 'Current worktree' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }))
+
+    await waitFor(() => {
+      expect(mocks.createSession).toHaveBeenCalledWith({
+        workDir: '/workspace/project',
+        repository: { branch: 'main', worktree: true },
+      })
+    })
+  })
 })

@@ -707,7 +707,7 @@ export const zh: Record<TranslationKey, string> = {
   'repoLaunch.checkedOut': '已在其他工作树中检出',
   'repoLaunch.worktreeCurrent': '当前工作树',
   'repoLaunch.worktreeIsolated': '独立工作树',
-  'repoLaunch.toggleWorktree': '切换工作树隔离',
+  'repoLaunch.selectWorktree': '选择工作树模式',
   'repoLaunch.notGit': '当前项目不是 Git 仓库。',
   'repoLaunch.missingWorkdir': '工作目录不存在。',
   'repoLaunch.dirtyWarning': '检测到未提交变更，直接切换会被阻止。开启独立工作树即可继续，且不会改动当前目录。',
