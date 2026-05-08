@@ -13,15 +13,6 @@ export function lanesForMode(mode: QualityGateMode, baselineTargets: BaselineTar
       category: 'scope',
     },
     {
-      id: 'pr-checks',
-      title: 'Path-aware PR checks',
-      description: 'Run the existing local PR gate with stable path-aware checks.',
-      kind: 'command',
-      command: ['bun', 'run', 'check:pr'],
-      requiredForModes: ['pr', 'release'],
-      category: 'governance',
-    },
-    {
       id: 'policy-checks',
       title: 'Policy checks',
       description: 'Run policy, workflow, hook, quarantine, and gate unit tests when any PR quality policy applies.',

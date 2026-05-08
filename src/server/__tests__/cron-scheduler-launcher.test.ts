@@ -17,6 +17,7 @@ const originalClaudeCliPath = process.env.CLAUDE_CLI_PATH
 const originalClaudeAppRoot = process.env.CLAUDE_APP_ROOT
 const originalAnthropicBaseUrl = process.env.ANTHROPIC_BASE_URL
 const originalAnthropicModel = process.env.ANTHROPIC_MODEL
+const originalClaudeCodeEntrypoint = process.env.CLAUDE_CODE_ENTRYPOINT
 
 const isWindows = process.platform === 'win32'
 const unixOnly = isWindows ? it.skip : it
@@ -74,6 +75,11 @@ function restoreEnv(): void {
     process.env.ANTHROPIC_MODEL = originalAnthropicModel
   } else {
     delete process.env.ANTHROPIC_MODEL
+  }
+  if (originalClaudeCodeEntrypoint) {
+    process.env.CLAUDE_CODE_ENTRYPOINT = originalClaudeCodeEntrypoint
+  } else {
+    delete process.env.CLAUDE_CODE_ENTRYPOINT
   }
 }
 
@@ -290,6 +296,6 @@ describe('cron scheduler launcher resolution', () => {
     expect(env.ANTHROPIC_API_KEY).toBe('proxy-managed')
     expect(env.ANTHROPIC_MODEL).toBe('provider-fast')
     expect(env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST).toBe('1')
-    expect(env.CLAUDE_CODE_ENTRYPOINT).toBeUndefined()
+    expect(env.CLAUDE_CODE_ENTRYPOINT).toBe('sdk-cli')
   })
 })
