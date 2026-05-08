@@ -143,7 +143,10 @@ function buildProviderAuthEnv(
     case 'api_key':
       return key ? { ANTHROPIC_API_KEY: key } : {}
     case 'auth_token':
-      return key ? { ANTHROPIC_AUTH_TOKEN: key } : {}
+      return {
+        ANTHROPIC_API_KEY: '',
+        ...(key ? { ANTHROPIC_AUTH_TOKEN: key } : {}),
+      }
     case 'auth_token_empty_api_key':
       return {
         ANTHROPIC_API_KEY: '',
