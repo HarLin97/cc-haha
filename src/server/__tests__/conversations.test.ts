@@ -1726,6 +1726,136 @@ describe('WebSocket Chat Integration', () => {
     }
   }, 20_000)
 
+  it('should wait for a runtime restart queued during first-turn startup before sending that turn', async () => {
+    const providerService = new ProviderService()
+    const provider = await providerService.addProvider({
+      presetId: 'custom',
+      name: 'Provider First Turn Runtime',
+      apiKey: 'key-first-turn-runtime',
+      baseUrl: 'http://127.0.0.1:1/anthropic',
+      apiFormat: 'anthropic',
+      models: {
+        main: 'first-turn-main',
+        haiku: 'first-turn-haiku',
+        sonnet: 'first-turn-sonnet',
+        opus: 'first-turn-opus',
+      },
+    })
+
+    const createRes = await fetch(`${baseUrl}/api/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workDir: process.cwd() }),
+    })
+    expect(createRes.status).toBe(201)
+    const { sessionId } = await createRes.json() as { sessionId: string }
+
+    const originalStartSession = conversationService.startSession.bind(conversationService)
+    const originalSendMessage = conversationService.sendMessage.bind(conversationService)
+    const startCalls: Array<{
+      sessionId: string
+      options: { permissionMode?: string; model?: string; effort?: string; providerId?: string | null } | undefined
+    }> = []
+    const sendCalls: Array<{ content: string; startCallCount: number }> = []
+    let releaseFirstStart!: () => void
+    const firstStartGate = new Promise<void>((resolve) => {
+      releaseFirstStart = resolve
+    })
+    let markFirstStart!: () => void
+    const firstStartEntered = new Promise<void>((resolve) => {
+      markFirstStart = resolve
+    })
+
+    conversationService.startSession = (async function patchedStartSession(
+      sid: string,
+      workDir: string,
+      sdkUrl: string,
+      options?: { permissionMode?: string; model?: string; effort?: string; thinking?: 'enabled' | 'adaptive' | 'disabled'; providerId?: string | null },
+    ) {
+      startCalls.push({ sessionId: sid, options })
+      if (startCalls.length === 1) {
+        markFirstStart()
+        await firstStartGate
+      }
+      return originalStartSession(sid, workDir, sdkUrl, options)
+    }) as typeof conversationService.startSession
+
+    conversationService.sendMessage = (function patchedSendMessage(
+      sid: string,
+      content: string,
+      attachments?: any,
+    ) {
+      sendCalls.push({ content, startCallCount: startCalls.length })
+      return originalSendMessage(sid, content, attachments)
+    }) as typeof conversationService.sendMessage
+
+    const ws = new WebSocket(`${wsUrl}/ws/${sessionId}`)
+    const messages: any[] = []
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`Timed out waiting for first-turn runtime synchronization for session ${sessionId}`))
+        }, 15_000)
+
+        ws.onmessage = (event) => {
+          const msg = JSON.parse(event.data as string)
+          messages.push(msg)
+
+          if (msg.type === 'connected') {
+            ws.send(JSON.stringify({ type: 'prewarm_session' }))
+            void firstStartEntered.then(() => {
+              ws.send(JSON.stringify({ type: 'user_message', content: 'first turn while runtime changes' }))
+              ws.send(JSON.stringify({
+                type: 'set_runtime_config',
+                providerId: provider.id,
+                modelId: 'first-turn-sonnet',
+              }))
+              releaseFirstStart()
+            })
+            return
+          }
+
+          if (msg.type === 'error') {
+            clearTimeout(timeout)
+            reject(new Error(msg.message))
+            return
+          }
+
+          if (msg.type === 'message_complete') {
+            clearTimeout(timeout)
+            resolve()
+          }
+        }
+
+        ws.onerror = () => {
+          clearTimeout(timeout)
+          reject(new Error(`WebSocket error for first-turn runtime synchronization session ${sessionId}`))
+        }
+      })
+
+      expect(startCalls).toHaveLength(2)
+      expect(startCalls[0]).toMatchObject({ sessionId })
+      expect(startCalls[0]?.options?.providerId).toBeNull()
+      expect(startCalls[1]).toMatchObject({
+        sessionId,
+        options: {
+          providerId: provider.id,
+          model: 'first-turn-sonnet',
+        },
+      })
+      expect(sendCalls).toEqual([{
+        content: 'first turn while runtime changes',
+        startCallCount: 2,
+      }])
+      expect(messages.some((msg) => msg.type === 'content_delta')).toBe(true)
+    } finally {
+      ws.close()
+      conversationService.startSession = originalStartSession
+      conversationService.sendMessage = originalSendMessage
+      conversationService.stopSession(sessionId)
+    }
+  }, 20_000)
+
   it('should keep the session idle in the UI while applying a runtime-only model switch', async () => {
     const providerService = new ProviderService()
     const provider = await providerService.addProvider({

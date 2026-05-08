@@ -211,6 +211,43 @@ describe('EmptySession', () => {
       attachments: [],
     })
     expect(mocks.wsConnect).toHaveBeenCalledWith('draft-session')
+    expect(useSessionRuntimeStore.getState().selections['draft-session']).toBeUndefined()
+  })
+
+  it('stores and replays a draft runtime only when the user explicitly selected one', async () => {
+    useSessionRuntimeStore.getState().setSelection('__draft__', {
+      providerId: 'provider-explicit',
+      modelId: 'model-explicit',
+    })
+
+    render(<EmptySession />)
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'draft question', selectionStart: 14 },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }))
+
+    await waitFor(() => {
+      expect(mocks.createSession).toHaveBeenCalledWith({})
+    })
+
+    expect(useSessionRuntimeStore.getState().selections['draft-session']).toEqual({
+      providerId: 'provider-explicit',
+      modelId: 'model-explicit',
+    })
+    expect(useSessionRuntimeStore.getState().selections['__draft__']).toBeUndefined()
+    expect(mocks.wsSend.mock.calls.slice(0, 2)).toEqual([
+      [
+        'draft-session',
+        {
+          type: 'set_runtime_config',
+          providerId: 'provider-explicit',
+          modelId: 'model-explicit',
+        },
+      ],
+      ['draft-session', { type: 'prewarm_session' }],
+    ])
   })
 
   it('starts in a selected non-Git project without showing a repository warning', async () => {

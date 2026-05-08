@@ -252,28 +252,10 @@ async function handleUserMessage(
   // Send thinking status
   sendMessage(ws, { type: 'status', state: 'thinking', verb: 'Thinking' })
 
-  const pendingRuntimeTransition = runtimeTransitionPromises.get(sessionId)
-  if (pendingRuntimeTransition) {
-    try {
-      await pendingRuntimeTransition
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err)
-      void diagnosticsService.recordEvent({
-        type: 'runtime_transition_failed',
-        severity: 'error',
-        sessionId,
-        summary: errMsg,
-        details: err,
-      })
-      console.error(`[WS] Runtime transition failed before handling user message for ${sessionId}: ${errMsg}`)
-      sendMessage(ws, {
-        type: 'error',
-        message: `Failed to switch provider/model: ${errMsg}`,
-        code: 'CLI_RESTART_FAILED',
-      })
-      sendMessage(ws, { type: 'status', state: 'idle' })
-      return
-    }
+  const initialRuntimeTransition = await waitForRuntimeTransitionBeforeUserTurn(ws, sessionId)
+  if (!initialRuntimeTransition.ok) return
+  if (initialRuntimeTransition.waited) {
+    sendMessage(ws, { type: 'status', state: 'thinking', verb: 'Thinking' })
   }
 
   // Track and emit the first placeholder title before CLI startup/streaming.
@@ -311,6 +293,15 @@ async function handleUserMessage(
         err instanceof ConversationStartupError ? err.retryable : false,
     })
     sendMessage(ws, { type: 'status', state: 'idle' })
+    return
+  }
+
+  const startupRuntimeTransition = await waitForRuntimeTransitionBeforeUserTurn(ws, sessionId)
+  if (startupRuntimeTransition.ok) {
+    if (startupRuntimeTransition.waited) {
+      sendMessage(ws, { type: 'status', state: 'thinking', verb: 'Thinking' })
+    }
+  } else {
     return
   }
 
@@ -1481,6 +1472,45 @@ function enqueueRuntimeTransition(
     })
   runtimeTransitionPromises.set(sessionId, next)
   return next
+}
+
+async function waitForRuntimeTransitionBeforeUserTurn(
+  ws: ServerWebSocket<WebSocketData>,
+  sessionId: string,
+): Promise<{ ok: boolean; waited: boolean }> {
+  let waited = false
+  let pendingRuntimeTransition = runtimeTransitionPromises.get(sessionId)
+  while (pendingRuntimeTransition) {
+    waited = true
+    try {
+      await pendingRuntimeTransition
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      void diagnosticsService.recordEvent({
+        type: 'runtime_transition_failed',
+        severity: 'error',
+        sessionId,
+        summary: errMsg,
+        details: err,
+      })
+      console.error(`[WS] Runtime transition failed before handling user message for ${sessionId}: ${errMsg}`)
+      sendMessage(ws, {
+        type: 'error',
+        message: `Failed to switch provider/model: ${errMsg}`,
+        code: 'CLI_RESTART_FAILED',
+      })
+      sendMessage(ws, { type: 'status', state: 'idle' })
+      return { ok: false, waited }
+    }
+
+    const nextTransition = runtimeTransitionPromises.get(sessionId)
+    pendingRuntimeTransition =
+      nextTransition && nextTransition !== pendingRuntimeTransition
+        ? nextTransition
+        : undefined
+  }
+
+  return { ok: true, waited }
 }
 
 /**

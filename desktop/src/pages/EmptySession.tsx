@@ -4,12 +4,10 @@ import { skillsApi } from '../api/skills'
 import { useTranslation } from '../i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { useChatStore } from '../stores/chatStore'
-import { useProviderStore } from '../stores/providerStore'
 import { useSessionRuntimeStore, DRAFT_RUNTIME_SELECTION_KEY } from '../stores/sessionRuntimeStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useUIStore } from '../stores/uiStore'
 import { SETTINGS_TAB_ID, useTabStore } from '../stores/tabStore'
-import { OFFICIAL_DEFAULT_MODEL_ID } from '../constants/modelCatalog'
 import { RepositoryLaunchControls } from '../components/shared/RepositoryLaunchControls'
 import { PermissionModeSelector } from '../components/controls/PermissionModeSelector'
 import { ModelSelector } from '../components/controls/ModelSelector'
@@ -207,31 +205,6 @@ export function EmptySession() {
     [slashCommands],
   )
 
-  const resolveDraftRuntimeSelection = async () => {
-    const settings = useSettingsStore.getState()
-    let providerState = useProviderStore.getState()
-    if (
-      settings.activeProviderName &&
-      providerState.providers.length === 0 &&
-      !providerState.isLoading
-    ) {
-      await providerState.fetchProviders()
-      providerState = useProviderStore.getState()
-    }
-    const inferredProviderId = providerState.activeId ?? (
-      settings.activeProviderName
-        ? providerState.providers.find((provider) => provider.name === settings.activeProviderName)?.id ?? null
-        : null
-    )
-    return (
-      useSessionRuntimeStore.getState().selections[DRAFT_RUNTIME_SELECTION_KEY]
-      ?? {
-        providerId: inferredProviderId,
-        modelId: settings.currentModel?.id ?? OFFICIAL_DEFAULT_MODEL_ID,
-      }
-    )
-  }
-
   const handleWorkDirChange = (newWorkDir: string) => {
     setWorkDir(newWorkDir)
     setSelectedBranch(null)
@@ -297,15 +270,17 @@ export function EmptySession() {
 
     setIsSubmitting(true)
     try {
-      const draftSelection = await resolveDraftRuntimeSelection()
+      const explicitDraftSelection = useSessionRuntimeStore.getState().selections[DRAFT_RUNTIME_SELECTION_KEY]
       const sessionId = await createSession(
         workDir || undefined,
         selectedBranch
           ? { repository: { branch: selectedBranch, worktree: useWorktree } }
           : undefined,
       )
-      useSessionRuntimeStore.getState().setSelection(sessionId, draftSelection)
-      useSessionRuntimeStore.getState().clearSelection(DRAFT_RUNTIME_SELECTION_KEY)
+      if (explicitDraftSelection) {
+        useSessionRuntimeStore.getState().setSelection(sessionId, explicitDraftSelection)
+        useSessionRuntimeStore.getState().clearSelection(DRAFT_RUNTIME_SELECTION_KEY)
+      }
       setActiveView('code')
       useTabStore.getState().openTab(sessionId, 'New Session')
       connectToSession(sessionId)
