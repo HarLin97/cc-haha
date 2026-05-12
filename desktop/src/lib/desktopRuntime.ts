@@ -202,9 +202,19 @@ async function waitForHealth(serverUrl: string) {
         cache: 'no-store',
       })
       if (response.ok) {
-        return
+        const contentType = response.headers.get('content-type') ?? ''
+        if (!contentType.toLowerCase().includes('application/json')) {
+          lastError = new Error(`healthcheck returned non-JSON response from ${serverUrl}/health`)
+        } else {
+          const body = await response.json().catch(() => null)
+          if (body && typeof body === 'object' && 'status' in body && body.status === 'ok') {
+            return
+          }
+          lastError = new Error(`healthcheck returned invalid response from ${serverUrl}/health`)
+        }
+      } else {
+        lastError = new Error(`healthcheck returned ${response.status}`)
       }
-      lastError = new Error(`healthcheck returned ${response.status}`)
     } catch (error) {
       lastError = error
     }
