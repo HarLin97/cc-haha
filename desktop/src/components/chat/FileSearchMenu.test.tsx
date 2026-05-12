@@ -91,7 +91,7 @@ describe('FileSearchMenu', () => {
       />,
     )
 
-    fireEvent.click(await screen.findByText('backend'))
+    fireEvent.click(await screen.findByText('backend/'))
 
     expect(onSelect).toHaveBeenCalledWith('/repo/backend', 'backend', true)
     expect(onNavigate).not.toHaveBeenCalled()
@@ -132,9 +132,34 @@ describe('FileSearchMenu', () => {
       />,
     )
 
-    fireEvent.click(await screen.findByText('pictactic'))
+    fireEvent.click(await screen.findByText('backend/src/pictactic'))
 
     expect(onSelect).toHaveBeenCalledWith('/repo/backend/src/pictactic', 'backend/src/pictactic', false)
+  })
+
+  it('renders search results as insertable paths instead of repeated basenames', async () => {
+    vi.mocked(filesystemApi.search).mockResolvedValueOnce({
+      currentPath: '/repo',
+      parentPath: '/',
+      query: 'src',
+      entries: [
+        { name: 'src', path: '/repo/src', relativePath: 'src', isDirectory: true },
+        { name: 'hooks', path: '/repo/src/hooks', relativePath: 'src/hooks', isDirectory: true },
+        { name: 'src', path: '/repo/desktop/src', relativePath: 'desktop/src', isDirectory: true },
+      ],
+    })
+
+    render(
+      <FileSearchMenu
+        cwd="/repo"
+        filter="src"
+        onSelect={() => {}}
+      />,
+    )
+
+    expect(await screen.findByText('src/')).toBeInTheDocument()
+    expect(screen.getByText('src/hooks/')).toBeInTheDocument()
+    expect(screen.getByText('desktop/src/')).toBeInTheDocument()
   })
 
   it('uses the resolved home root for typed folder filters when no workspace is selected', async () => {
@@ -160,7 +185,7 @@ describe('FileSearchMenu', () => {
       />,
     )
 
-    expect(await screen.findByText('workspace')).toBeInTheDocument()
+    expect(await screen.findByText('workspace/')).toBeInTheDocument()
 
     rerender(
       <FileSearchMenu

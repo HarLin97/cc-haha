@@ -520,7 +520,7 @@ describe('ChatInput file mentions', () => {
       },
     })
 
-    fireEvent.click(await screen.findByText('conditions.py'))
+    fireEvent.click(await screen.findByText('backend/src/conditions.py'))
 
     await waitFor(() => {
       expect(input.value).toBe('记一下这个文件讲了什么东西。')

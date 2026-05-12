@@ -56,6 +56,9 @@ describe('filesystem API', () => {
     await fsp.mkdir(path.join(homeFixtureDir, 'src', 'commands'), { recursive: true })
     await fsp.mkdir(path.join(homeFixtureDir, 'src', 'commands', 'files'), { recursive: true })
     await fsp.mkdir(path.join(homeFixtureDir, 'src', 'constants'), { recursive: true })
+    await fsp.mkdir(path.join(homeFixtureDir, 'src', 'hooks'), { recursive: true })
+    await fsp.mkdir(path.join(homeFixtureDir, 'desktop', 'src'), { recursive: true })
+    await fsp.mkdir(path.join(homeFixtureDir, 'scripts', 'quality-gate', 'baseline', 'fixtures', 'cross-module-refactor', 'src'), { recursive: true })
     await fsp.mkdir(path.join(homeFixtureDir, '__pycache__'), { recursive: true })
     await fsp.mkdir(path.join(homeFixtureDir, 'node_modules', 'pkg'), { recursive: true })
     await fsp.mkdir(path.join(homeFixtureDir, '.venv', 'lib'), { recursive: true })
@@ -65,6 +68,9 @@ describe('filesystem API', () => {
     await fsp.writeFile(path.join(homeFixtureDir, 'src', 'commands', 'files.ts'), 'export {}')
     await fsp.writeFile(path.join(homeFixtureDir, 'src', 'commands', 'files', 'index.ts'), 'export {}')
     await fsp.writeFile(path.join(homeFixtureDir, 'src', 'constants', 'fileSearch.ts'), 'export {}')
+    await fsp.writeFile(path.join(homeFixtureDir, 'src', 'hooks', 'useFileSearch.ts'), 'export {}')
+    await fsp.writeFile(path.join(homeFixtureDir, 'desktop', 'src', 'main.ts'), 'export {}')
+    await fsp.writeFile(path.join(homeFixtureDir, 'scripts', 'quality-gate', 'baseline', 'fixtures', 'cross-module-refactor', 'src', 'index.ts'), 'export {}')
     await fsp.writeFile(path.join(homeFixtureDir, '__pycache__', 'fileSearch.cpython-311.pyc'), '')
     await fsp.writeFile(path.join(homeFixtureDir, 'node_modules', 'pkg', 'files.js'), '')
     await fsp.writeFile(path.join(homeFixtureDir, '.venv', 'lib', 'files.py'), '')
@@ -94,6 +100,25 @@ describe('filesystem API', () => {
     expect(body.entries.some((entry) => entry.relativePath === 'node_modules/pkg/files.js')).toBe(false)
     expect(body.entries.some((entry) => entry.relativePath === '.venv/lib/files.py')).toBe(false)
     expect(body.entries.some((entry) => entry.relativePath === 'tmp-ignore/files.tmp')).toBe(false)
+
+    const srcRes = await handleFilesystemRoute(
+      '/api/filesystem/browse',
+      makeUrl('/api/filesystem/browse', {
+        path: homeFixtureDir,
+        search: 'src',
+        includeFiles: 'true',
+      }),
+    )
+
+    expect(srcRes.status).toBe(200)
+    const srcBody = await srcRes.json() as { entries: Array<{ relativePath?: string }> }
+    const srcPaths = srcBody.entries.map(entry => entry.relativePath)
+    expect(srcPaths[0]).toBe('src')
+    expect(srcPaths.indexOf('src/hooks')).toBeGreaterThan(-1)
+    expect(srcPaths.indexOf('desktop/src')).toBeGreaterThan(-1)
+    expect(srcPaths.indexOf('scripts/quality-gate/baseline/fixtures/cross-module-refactor/src')).toBeGreaterThan(-1)
+    expect(srcPaths.indexOf('src/hooks')).toBeLessThan(srcPaths.indexOf('desktop/src'))
+    expect(srcPaths.indexOf('src/hooks')).toBeLessThan(srcPaths.indexOf('scripts/quality-gate/baseline/fixtures/cross-module-refactor/src'))
   })
 
   it('falls back to ripgrep search outside git and still respects ignore files', async () => {

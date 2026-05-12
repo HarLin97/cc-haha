@@ -204,6 +204,11 @@ async function searchFilesystemEntries(
     .sort((a, b) => {
       if (a.score !== b.score) return b.score - a.score
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+      const aPath = a.relativePath ?? a.name
+      const bPath = b.relativePath ?? b.name
+      const aDepth = pathDepth(aPath)
+      const bDepth = pathDepth(bPath)
+      if (aDepth !== bDepth) return aDepth - bDepth
       return (a.relativePath ?? a.name).localeCompare(b.relativePath ?? b.name)
     })
     .slice(0, options.maxResults)
@@ -386,13 +391,16 @@ function scoreFilesystemEntry(name: string, relativePath: string, query: string,
   const normalizedName = normalizeSearchText(name)
   const normalizedPath = normalizeSearchText(relativePath)
   const pathNoExtension = normalizedPath.replace(/\.[^/.]+$/, '')
+  const pathPrefix = `${query}/`
   const baseBoost = isDirectory ? 4 : 0
   const depthPenalty = Math.min(relativePath.split('/').length - 1, 8) * 2
 
-  if (normalizedName === query) return 120 + baseBoost - depthPenalty
-  if (pathNoExtension === query || normalizedPath === query) return 112 + baseBoost - depthPenalty
-  if (normalizedName.startsWith(query)) return 96 + baseBoost - depthPenalty
-  if (normalizedPath.startsWith(query)) return 88 + baseBoost - depthPenalty
+  if (normalizedPath === query) return 150 + baseBoost - depthPenalty
+  if (pathNoExtension === query) return 144 + baseBoost - depthPenalty
+  if (normalizedPath.startsWith(pathPrefix)) return 136 + baseBoost - depthPenalty
+  if (normalizedPath.startsWith(query)) return 112 + baseBoost - depthPenalty
+  if (normalizedName === query) return 96 + baseBoost - depthPenalty
+  if (normalizedName.startsWith(query)) return 88 + baseBoost - depthPenalty
   if (normalizedName.includes(query)) return 72 + baseBoost - depthPenalty
   if (normalizedPath.includes(query)) return 60 + baseBoost - depthPenalty
 
@@ -403,6 +411,10 @@ function scoreFilesystemEntry(name: string, relativePath: string, query: string,
   if (pathFuzzy > 0) return 28 + pathFuzzy + baseBoost - depthPenalty
 
   return 0
+}
+
+function pathDepth(relativePath: string): number {
+  return relativePath.split('/').length
 }
 
 function fuzzyScore(value: string, query: string): number {

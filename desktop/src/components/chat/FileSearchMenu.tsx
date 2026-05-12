@@ -68,6 +68,12 @@ export const FileSearchMenu = forwardRef<FileSearchMenuHandle, Props>(({ cwd, fi
     return entry.name
   }, [cwd, rootPath])
 
+  const getDisplayPath = useCallback((entry: DirEntry) => {
+    const relativePath = getRelativePath(entry).replace(/\\/g, '/')
+    if (!entry.isDirectory) return relativePath
+    return `${relativePath.replace(/\/+$/, '')}/`
+  }, [getRelativePath])
+
   const selectEntry = useCallback((entry: DirEntry) => {
     onSelect(entry.path, getRelativePath(entry), entry.isDirectory)
   }, [getRelativePath, onSelect])
@@ -194,6 +200,7 @@ export const FileSearchMenu = forwardRef<FileSearchMenuHandle, Props>(({ cwd, fi
 
   const renderEntry = (entry: DirEntry, index: number) => {
     const relativePath = getRelativePath(entry)
+    const displayPath = getDisplayPath(entry)
     const parentPath = relativePath.split('/').slice(0, -1).join('/')
     const selected = selectedIndex === index
     return (
@@ -208,7 +215,9 @@ export const FileSearchMenu = forwardRef<FileSearchMenuHandle, Props>(({ cwd, fi
         <button
           type="button"
           onClick={() => selectEntry(entry)}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40"
+          className={`flex min-w-0 flex-1 items-center rounded-lg px-2.5 text-left transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40 ${
+            isSearchMode ? 'gap-2.5 py-2' : 'gap-3 py-2'
+          }`}
           role="option"
           aria-selected={selected}
         >
@@ -216,14 +225,27 @@ export const FileSearchMenu = forwardRef<FileSearchMenuHandle, Props>(({ cwd, fi
             {entry.isDirectory ? 'folder' : 'description'}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium text-[var(--color-text-primary)]">{entry.name}</span>
-            <span className="block truncate font-[var(--font-mono)] text-[11px] text-[var(--color-text-tertiary)]">
-              {parentPath || (entry.isDirectory ? t('fileSearch.directory') : t('fileSearch.currentDirectory'))}
+            {isSearchMode ? (
+              <span
+                className="block truncate font-[var(--font-mono)] text-sm text-[var(--color-text-primary)]"
+                title={displayPath}
+              >
+                {displayPath}
+              </span>
+            ) : (
+              <>
+                <span className="block truncate text-sm font-medium text-[var(--color-text-primary)]">{entry.name}</span>
+                <span className="block truncate font-[var(--font-mono)] text-[11px] text-[var(--color-text-tertiary)]">
+                  {parentPath || (entry.isDirectory ? t('fileSearch.directory') : t('fileSearch.currentDirectory'))}
+                </span>
+              </>
+            )}
+          </span>
+          {!isSearchMode ? (
+            <span className="shrink-0 rounded-md border border-[var(--color-border)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.02em] text-[var(--color-text-tertiary)]">
+              {entry.isDirectory ? t('fileSearch.folderTag') : t('fileSearch.fileTag')}
             </span>
-          </span>
-          <span className="shrink-0 rounded-md border border-[var(--color-border)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.02em] text-[var(--color-text-tertiary)]">
-            {entry.isDirectory ? t('fileSearch.folderTag') : t('fileSearch.fileTag')}
-          </span>
+          ) : null}
         </button>
         {entry.isDirectory ? (
           <button
