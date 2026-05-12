@@ -59,7 +59,7 @@ function isLocalOrigin(origin?: string | null): boolean {
 
 export async function resolveCors(
   origin?: string | null,
-  requestOrigin?: string | null,
+  _requestOrigin?: string | null,
   options: CorsResolutionOptions = {},
 ): Promise<CorsResolution> {
   if (!origin) {
@@ -70,7 +70,7 @@ export async function resolveCors(
     }
   }
 
-  if (!options.h5Enabled || isLocalOrigin(origin) || origin === requestOrigin) {
+  if (!options.h5Enabled || isLocalOrigin(origin)) {
     return {
       allowed: true,
       rejected: false,

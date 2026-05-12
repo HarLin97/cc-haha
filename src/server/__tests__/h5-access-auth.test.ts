@@ -18,6 +18,7 @@ let originalH5DistDir: string | undefined
 let originalClaudeAppRoot: string | undefined
 let originalServerAuthRequired: string | undefined
 let originalServerPort = 3456
+const PHONE_ORIGIN = 'https://phone.example'
 
 async function waitForServer(url: string): Promise<void> {
   for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -90,14 +91,21 @@ function makeUpgradeHeaders(origin?: string): HeadersInit {
 
 async function enableH5Access(options: {
   allowedOrigins?: string[]
+  publicBaseUrl?: string | null
 } = {}): Promise<string> {
   const service = new H5AccessService()
-  if (options.allowedOrigins) {
-    await service.updateSettings({ allowedOrigins: options.allowedOrigins })
+  if (options.allowedOrigins || options.publicBaseUrl !== undefined) {
+    await service.updateSettings({
+      allowedOrigins: options.allowedOrigins,
+      publicBaseUrl: options.publicBaseUrl,
+    })
   }
   const { token } = await service.enable()
-  if (options.allowedOrigins) {
-    await service.updateSettings({ allowedOrigins: options.allowedOrigins })
+  if (options.allowedOrigins || options.publicBaseUrl !== undefined) {
+    await service.updateSettings({
+      allowedOrigins: options.allowedOrigins,
+      publicBaseUrl: options.publicBaseUrl,
+    })
   }
   return token
 }
@@ -276,19 +284,78 @@ describe('remote H5 auth and CORS integration', () => {
     expect(response.status).toBe(403)
   })
 
-  test('allows same-origin H5 browser requests without a separate origin allowlist entry', async () => {
-    const token = await enableH5Access()
-    const requestBaseUrl = lanBaseUrl || baseUrl
-
-    const response = await fetch(`${requestBaseUrl}/api/status`, {
+  test('blocks remote browsers from enabling H5 access before the local desktop opts in', async () => {
+    const response = await fetch(`${baseUrl}/api/h5-access/enable`, {
+      method: 'POST',
       headers: {
-        Origin: requestBaseUrl,
+        Origin: PHONE_ORIGIN,
+      },
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Forbidden',
+    })
+  })
+
+  test('blocks remote preflight requests to the local H5 access control plane', async () => {
+    const response = await fetch(`${baseUrl}/api/h5-access/enable`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: PHONE_ORIGIN,
+        'Access-Control-Request-Method': 'POST',
+      },
+    })
+
+    expect(response.status).toBe(403)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
+  })
+
+  test('blocks authenticated remote browsers from changing H5 access settings under explicit server auth', async () => {
+    await restartRemoteServer({ authRequired: true })
+    process.env.ANTHROPIC_API_KEY = 'test-server-key'
+
+    const response = await fetch(`${baseUrl}/api/h5-access/enable`, {
+      method: 'POST',
+      headers: {
+        Origin: PHONE_ORIGIN,
+        Authorization: 'Bearer test-server-key',
+      },
+    })
+
+    expect(response.status).toBe(403)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
+  })
+
+  test('allows local desktop H5 access settings under explicit server auth with a valid bearer', async () => {
+    await restartRemoteServer({ authRequired: true })
+    process.env.ANTHROPIC_API_KEY = 'test-server-key'
+
+    const response = await fetch(`${baseUrl}/api/h5-access/enable`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-server-key',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toHaveProperty('token')
+  })
+
+  test('allows H5 browser requests from the configured public base URL origin', async () => {
+    const token = await enableH5Access({
+      publicBaseUrl: `${PHONE_ORIGIN}/h5`,
+    })
+
+    const response = await fetch(`${baseUrl}/api/status`, {
+      headers: {
+        Origin: PHONE_ORIGIN,
         Authorization: `Bearer ${token}`,
       },
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(requestBaseUrl)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(PHONE_ORIGIN)
   })
 
   test('allows configured CORS origins and includes Vary: Origin', async () => {
@@ -316,21 +383,21 @@ describe('remote H5 auth and CORS integration', () => {
     await expectWebSocketOpen(`${wsBaseUrl}/ws/h5-auth-test`)
   })
 
-  test('requires H5 token for LAN REST requests when H5 access is enabled', async () => {
-    const token = await enableH5Access()
+  test('requires H5 token for remote browser REST requests when H5 access is enabled', async () => {
+    const token = await enableH5Access({
+      allowedOrigins: [PHONE_ORIGIN],
+    })
 
-    expect(lanBaseUrl).toBeTruthy()
-
-    const missingTokenResponse = await fetch(`${lanBaseUrl}/api/status`, {
+    const missingTokenResponse = await fetch(`${baseUrl}/api/status`, {
       headers: {
-        Origin: lanBaseUrl,
+        Origin: PHONE_ORIGIN,
       },
     })
     expect(missingTokenResponse.status).toBe(401)
 
-    const validTokenResponse = await fetch(`${lanBaseUrl}/api/status`, {
+    const validTokenResponse = await fetch(`${baseUrl}/api/status`, {
       headers: {
-        Origin: lanBaseUrl,
+        Origin: PHONE_ORIGIN,
         Authorization: `Bearer ${token}`,
       },
     })
@@ -354,20 +421,37 @@ describe('remote H5 auth and CORS integration', () => {
 
     const response = await fetch(`${baseUrl}/api/adapters`)
 
-    expect(response.status).not.toBe(401)
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({})
   })
 
-  test('requires H5 token for LAN websocket requests when H5 access is enabled', async () => {
-    const token = await enableH5Access()
+  test('blocks adapter requests from non-local browser origins when H5 access is enabled', async () => {
+    await enableH5Access()
 
-    expect(lanBaseUrl).toBeTruthy()
+    const response = await fetch(`${baseUrl}/api/adapters`, {
+      headers: {
+        Origin: PHONE_ORIGIN,
+      },
+    })
 
-    const missingTokenResponse = await fetch(`${lanBaseUrl}/ws/h5-auth-test`, {
-      headers: makeUpgradeHeaders(lanBaseUrl),
+    expect(response.status).toBe(403)
+  })
+
+  test('requires H5 token for remote browser websocket requests when H5 access is enabled', async () => {
+    const token = await enableH5Access({
+      allowedOrigins: [PHONE_ORIGIN],
+    })
+
+    const missingTokenResponse = await fetch(`${baseUrl}/ws/h5-auth-test`, {
+      headers: makeUpgradeHeaders(PHONE_ORIGIN),
     })
     expect(missingTokenResponse.status).toBe(401)
 
-    await expectWebSocketOpen(`${lanWsBaseUrl}/ws/h5-auth-test?token=${token}`)
+    const validTokenResponse = await fetch(`${baseUrl}/ws/h5-auth-test?token=${token}`, {
+      headers: makeUpgradeHeaders(PHONE_ORIGIN),
+    })
+    expect(validTokenResponse.status).toBe(400)
+    await expect(validTokenResponse.text()).resolves.toBe('WebSocket upgrade failed')
   })
 
   test('honors explicit auth opt-in for REST and websocket requests', async () => {

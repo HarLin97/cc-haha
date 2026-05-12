@@ -72,4 +72,26 @@ describe('resolveCors', () => {
       },
     })
   })
+
+  it('does not trust non-local same-origin requests unless explicitly configured', async () => {
+    const result = await resolveCors('http://192.168.0.20:3456', 'http://192.168.0.20:3456', {
+      h5Enabled: true,
+      isOriginAllowed: async () => false,
+    })
+
+    expect(result.allowed).toBe(false)
+    expect(result.rejected).toBe(true)
+    expect(result.headers['Access-Control-Allow-Origin']).toBeUndefined()
+  })
+
+  it('allows same-origin H5 browser requests only through the configured origin callback', async () => {
+    const result = await resolveCors('http://192.168.0.20:3456', 'http://192.168.0.20:3456', {
+      h5Enabled: true,
+      isOriginAllowed: async (origin) => origin === 'http://192.168.0.20:3456',
+    })
+
+    expect(result.allowed).toBe(true)
+    expect(result.rejected).toBe(false)
+    expect(result.headers['Access-Control-Allow-Origin']).toBe('http://192.168.0.20:3456')
+  })
 })

@@ -20,7 +20,7 @@ import { enableConfigs } from '../utils/config.js'
 import { diagnosticsService } from './services/diagnosticsService.js'
 import { ensurePersistentStorageUpgraded } from './services/persistentStorageMigrations.js'
 import { handleStaticH5Request } from './staticH5.js'
-import { shouldRequireH5Token } from './h5AccessPolicy.js'
+import { classifyH5Request, shouldRequireH5Token } from './h5AccessPolicy.js'
 import { H5AccessService } from './services/h5AccessService.js'
 
 function readArgValue(flag: string): string | undefined {
@@ -70,6 +70,40 @@ function corsRejectedResponse(cors: CorsResolution): Response {
   )
 }
 
+function h5AccessControlRejectedResponse(): Response {
+  return Response.json(
+    {
+      error: 'Forbidden',
+      message: 'H5 access settings can only be changed from the local desktop app.',
+    },
+    { status: 403 },
+  )
+}
+
+function isH5AccessControlRequest(req: Request, url: URL): boolean {
+  if (!url.pathname.startsWith('/api/h5-access')) {
+    return false
+  }
+
+  if (url.pathname === '/api/h5-access/verify') {
+    return false
+  }
+
+  return classifyH5Request(req, url) !== 'local-trusted'
+}
+
+function originFromUrl(value: string | null): string | null {
+  if (!value) {
+    return null
+  }
+
+  try {
+    return new URL(value).origin
+  } catch {
+    return null
+  }
+}
+
 export function startServer(port = PORT, host = HOST) {
   enableConfigs()
   diagnosticsService.installConsoleCapture()
@@ -99,9 +133,12 @@ export function startServer(port = PORT, host = HOST) {
       const url = new URL(req.url)
       const origin = req.headers.get('Origin')
       const h5Settings = await h5AccessService.getSettings()
+      const h5PublicOrigin = originFromUrl(h5Settings.publicBaseUrl)
       const cors = await resolveCors(origin, url.origin, {
         h5Enabled: h5Settings.enabled,
-        isOriginAllowed: (candidateOrigin) => h5AccessService.isOriginAllowed(candidateOrigin),
+        isOriginAllowed: async (candidateOrigin) =>
+          candidateOrigin === h5PublicOrigin ||
+          await h5AccessService.isOriginAllowed(candidateOrigin),
       })
       const authRequired = shouldRequireH5Token({
         request: req,
@@ -109,6 +146,11 @@ export function startServer(port = PORT, host = HOST) {
         h5Enabled: h5Settings.enabled,
         explicitAuthRequired: forceAuth,
       })
+      const h5AccessControlBlocked = isH5AccessControlRequest(req, url)
+
+      if (h5AccessControlBlocked) {
+        return h5AccessControlRejectedResponse()
+      }
 
       // Handle CORS preflight
       if (req.method === 'OPTIONS') {
