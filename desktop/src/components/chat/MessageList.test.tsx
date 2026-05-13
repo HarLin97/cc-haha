@@ -174,6 +174,125 @@ describe('MessageList nested tool calls', () => {
     expect(useTabStore.getState().activeTabId).toBe('__settings__')
   })
 
+  it('promotes memory file writes from tool calls into a dedicated memory card', () => {
+    useChatStore.setState({
+      sessions: {
+        [ACTIVE_TAB]: makeSessionState({
+          messages: [
+            {
+              id: 'tool-write-memory',
+              type: 'tool_use',
+              toolName: 'Write',
+              toolUseId: 'write-memory',
+              input: {
+                file_path: '/Users/test/.claude/projects/example/memory/preferences.md',
+                content: '# Preferences\n',
+              },
+              timestamp: 1,
+            },
+            {
+              id: 'result-write-memory',
+              type: 'tool_result',
+              toolUseId: 'write-memory',
+              content: 'File written successfully',
+              isError: false,
+              timestamp: 2,
+            },
+          ],
+        }),
+      },
+    })
+
+    render(<MessageList sessionId={ACTIVE_TAB} />)
+
+    expect(screen.getByText('Saved 1 memory item(s)')).toBeTruthy()
+    expect(screen.getByText('preferences.md')).toBeTruthy()
+    expect(screen.getByText('Tool details')).toBeTruthy()
+  })
+
+  it('promotes memory file reads into collapsible memory references', () => {
+    useChatStore.setState({
+      sessions: {
+        [ACTIVE_TAB]: makeSessionState({
+          messages: [
+            {
+              id: 'tool-read-memory-1',
+              type: 'tool_use',
+              toolName: 'Read',
+              toolUseId: 'read-memory-1',
+              input: { file_path: '/Users/test/.claude/projects/example/memory/MEMORY.md' },
+              timestamp: 1,
+            },
+            {
+              id: 'result-read-memory-1',
+              type: 'tool_result',
+              toolUseId: 'read-memory-1',
+              content: '1 # Project Memory\n2\n3 billing ledger rules',
+              isError: false,
+              timestamp: 2,
+            },
+            {
+              id: 'tool-read-memory-2',
+              type: 'tool_use',
+              toolName: 'Read',
+              toolUseId: 'read-memory-2',
+              input: { file_path: '/Users/test/.claude/projects/example/memory/workflow.md' },
+              timestamp: 3,
+            },
+          ],
+        }),
+      },
+    })
+
+    render(<MessageList sessionId={ACTIVE_TAB} />)
+
+    expect(screen.getByText('2 memory reference(s)')).toBeTruthy()
+    fireEvent.click(screen.getByText('2 memory reference(s)'))
+    expect(screen.getByText('MEMORY.md')).toBeTruthy()
+    expect(screen.getByText('workflow.md')).toBeTruthy()
+  })
+
+  it('keeps non-memory tools visible when a tool group also touches memory files', () => {
+    useChatStore.setState({
+      sessions: {
+        [ACTIVE_TAB]: makeSessionState({
+          messages: [
+            {
+              id: 'tool-read-memory',
+              type: 'tool_use',
+              toolName: 'Read',
+              toolUseId: 'read-memory',
+              input: { file_path: '/Users/test/.claude/projects/example/memory/MEMORY.md' },
+              timestamp: 1,
+            },
+            {
+              id: 'tool-bash',
+              type: 'tool_use',
+              toolName: 'Bash',
+              toolUseId: 'bash-1',
+              input: { command: 'bun test' },
+              timestamp: 2,
+            },
+            {
+              id: 'result-bash',
+              type: 'tool_result',
+              toolUseId: 'bash-1',
+              content: 'ok',
+              isError: false,
+              timestamp: 3,
+            },
+          ],
+        }),
+      },
+    })
+
+    render(<MessageList sessionId={ACTIVE_TAB} />)
+
+    expect(screen.getByText('1 memory reference(s)')).toBeTruthy()
+    expect(screen.getByText('Bash')).toBeTruthy()
+    expect(screen.getByText('bun test')).toBeTruthy()
+  })
+
   it('keeps root tool runs split when nested child tool calls appear between them', () => {
     const messages: UIMessage[] = [
       {
