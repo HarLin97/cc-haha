@@ -112,6 +112,8 @@ describe('MemorySettings', () => {
     expect(memoryApiMock.listProjects).toHaveBeenCalledWith('/workspace/demo')
     expect(await screen.findByText('/workspace/demo')).toBeInTheDocument()
     expect(await screen.findByText('Project conventions.')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('MEMORY.md or notes/project.md')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /create memory file/i })).not.toBeInTheDocument()
 
     const editor = await screen.findByLabelText('Editor')
     expect(editor).toHaveValue('# Project Memory\n')
@@ -129,46 +131,6 @@ describe('MemorySettings', () => {
         projectId: '-workspace-demo',
         path: 'MEMORY.md',
         content: '# Project Memory\n\n- Prefer small diffs.\n',
-      })
-    })
-  })
-
-  it('creates a new markdown memory file with a project frontmatter template', async () => {
-    memoryApiMock.listFiles
-      .mockResolvedValueOnce({ files: [] })
-      .mockResolvedValueOnce({
-        files: [
-          {
-            path: 'notes/team.md',
-            name: 'team.md',
-            title: 'team',
-            bytes: 75,
-            updatedAt: '2026-05-01T00:02:00.000Z',
-            type: 'project',
-            isIndex: false,
-          },
-        ],
-      })
-    memoryApiMock.readFile.mockResolvedValueOnce({
-      file: {
-        path: 'notes/team.md',
-        content: '# team\n',
-        updatedAt: '2026-05-01T00:02:00.000Z',
-        bytes: 75,
-      },
-    })
-
-    render(<MemorySettings />)
-
-    const pathInput = await screen.findByPlaceholderText('MEMORY.md or notes/project.md')
-    fireEvent.change(pathInput, { target: { value: 'notes/team.md' } })
-    fireEvent.click(screen.getByRole('button', { name: /create memory file/i }))
-
-    await waitFor(() => {
-      expect(memoryApiMock.saveFile).toHaveBeenCalledWith({
-        projectId: '-workspace-demo',
-        path: 'notes/team.md',
-        content: expect.stringContaining('type: project'),
       })
     })
   })

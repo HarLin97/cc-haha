@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FileText, Plus, Search, X } from 'lucide-react'
+import { FileText, Search, X } from 'lucide-react'
 import { Button } from '../components/shared/Button'
 import { MarkdownRenderer } from '../components/markdown/MarkdownRenderer'
 import { useTranslation } from '../i18n'
@@ -31,14 +31,11 @@ export function MemorySettings() {
     openFile,
     updateDraft,
     saveFile,
-    createFile,
   } = useMemoryStore()
   const sessions = useSessionStore((s) => s.sessions)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
   const pendingMemoryPath = useUIStore((s) => s.pendingMemoryPath)
   const setPendingMemoryPath = useUIStore((s) => s.setPendingMemoryPath)
-  const [newPath, setNewPath] = useState('')
-  const [newPathError, setNewPathError] = useState<string | null>(null)
   const [projectQuery, setProjectQuery] = useState('')
   const [fileQuery, setFileQuery] = useState('')
 
@@ -130,22 +127,6 @@ export function MemorySettings() {
     void openFile(selectedProjectId, file.path)
   }
 
-  const handleCreate = () => {
-    if (!selectedProjectId) return
-    const path = normalizeMemoryPath(newPath || DEFAULT_MEMORY_PATH)
-    if (!isValidMemoryPath(path)) {
-      setNewPathError(t('settings.memory.invalidPath'))
-      return
-    }
-    if (files.some((file) => file.path === path)) {
-      setNewPathError(t('settings.memory.fileExists'))
-      return
-    }
-    setNewPath('')
-    setNewPathError(null)
-    void createFile(selectedProjectId, path, buildMemoryTemplate(path))
-  }
-
   return (
     <div className="flex h-full min-h-[640px] flex-col gap-5">
       <header className="flex flex-col gap-4 border-b border-[var(--color-border)] pb-5 sm:flex-row sm:items-end sm:justify-between">
@@ -214,23 +195,8 @@ export function MemorySettings() {
               title={t('settings.memory.files')}
               meta={isLoadingFiles ? t('common.loading') : `${files.length}`}
             />
-            <div className="grid gap-3 border-b border-[var(--color-border)] p-3">
-              <CreateFileControl
-                value={newPath}
-                onChange={(value) => {
-                  setNewPath(value)
-                  setNewPathError(null)
-                }}
-                onCreate={handleCreate}
-                disabled={!selectedProjectId}
-                loading={isSaving && !selectedFile}
-                placeholder={t('settings.memory.newPathPlaceholder')}
-                label={t('settings.memory.createMemoryFile')}
-              />
-              {newPathError && (
-                <p className="mt-2 text-xs text-[var(--color-error)]">{newPathError}</p>
-              )}
-              {files.length > 3 ? (
+            {files.length > 3 ? (
+              <div className="border-b border-[var(--color-border)] p-3">
                 <SearchField
                   value={fileQuery}
                   onChange={setFileQuery}
@@ -238,8 +204,8 @@ export function MemorySettings() {
                   ariaLabel={t('settings.memory.fileSearchPlaceholder')}
                   clearLabel={t('settings.memory.clearSearch')}
                 />
-              ) : null}
-            </div>
+              </div>
+            ) : null}
             <div className="max-h-[420px] overflow-y-auto p-2">
               {files.length === 0 && !isLoadingFiles ? (
                 <EmptyState text={t('settings.memory.emptyFiles')} />
@@ -373,48 +339,6 @@ function SearchField({
   )
 }
 
-function CreateFileControl({
-  value,
-  onChange,
-  onCreate,
-  disabled,
-  loading,
-  placeholder,
-  label,
-}: {
-  value: string
-  onChange: (value: string) => void
-  onCreate: () => void
-  disabled: boolean
-  loading: boolean
-  placeholder: string
-  label: string
-}) {
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_44px] gap-2">
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') onCreate()
-        }}
-        placeholder={placeholder}
-        aria-label={label}
-        className="h-11 min-w-0 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-text-primary)] outline-none transition-colors duration-150 placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-border-focus)] focus:shadow-[var(--shadow-focus-ring)]"
-      />
-      <button
-        type="button"
-        aria-label={label}
-        disabled={disabled || loading}
-        onClick={onCreate}
-        className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] transition-colors duration-150 hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <Plus size={18} aria-hidden="true" />
-      </button>
-    </div>
-  )
-}
-
 function PanelHeader({ title, meta }: { title: string; meta: string }) {
   return (
     <div className="flex h-12 items-center justify-between border-b border-[var(--color-border)] px-3">
@@ -510,10 +434,6 @@ function EmptyState({ text }: { text: string }) {
   )
 }
 
-function normalizeMemoryPath(value: string): string {
-  return value.trim().replace(/\\/g, '/').replace(/^\/+/, '')
-}
-
 function normalizeSearch(value: string): string {
   return value.toLowerCase().replace(/\\/g, '/').replace(/\/+/g, '/').trim()
 }
@@ -569,28 +489,6 @@ function resolveMemoryFileTarget(projects: MemoryProject[], absolutePath: string
     }
   }
   return null
-}
-
-function isValidMemoryPath(path: string): boolean {
-  return (
-    path.length > 0 &&
-    path.endsWith('.md') &&
-    !path.includes('\0') &&
-    !path.split('/').some((part) => part === '' || part === '.' || part === '..')
-  )
-}
-
-function buildMemoryTemplate(path: string): string {
-  const parts = path.split('/')
-  const title = parts[parts.length - 1]?.replace(/\.md$/, '') || 'Memory'
-  return `---
-type: project
-description: Manually curated project memory.
----
-
-# ${title}
-
-`
 }
 
 function formatDate(value: string): string {
