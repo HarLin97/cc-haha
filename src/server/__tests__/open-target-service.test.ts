@@ -12,9 +12,11 @@ function createService(
   platform: NodeJS.Platform,
   options: {
     commands?: Record<string, boolean>
+    commandPaths?: Record<string, string | null>
     paths?: Record<string, boolean>
     plistValues?: Record<string, string | null>
     dirNames?: Record<string, string[]>
+    textFiles?: Record<string, string | null>
     launchResult?: { code: number; stdout: string; stderr: string }
     iconData?: Uint8Array
     ttlMs?: number
@@ -33,7 +35,12 @@ function createService(
     now: () => now.value,
     commandExists: async (command) => {
       commandProbes += 1
-      return options.commands?.[command] === true
+      return options.commands?.[command] === true || Boolean(options.commandPaths?.[command])
+    },
+    resolveCommand: async (command) => {
+      const commandPath = options.commandPaths?.[command]
+      if (commandPath !== undefined) return commandPath
+      return options.commands?.[command] === true ? command : null
     },
     pathExists: async (targetPath) => {
       pathProbes += 1
@@ -44,6 +51,7 @@ function createService(
       return options.launchResult ?? { code: 0, stdout: '', stderr: '' }
     },
     readDirNames: async (targetPath) => options.dirNames?.[targetPath] ?? [],
+    readTextFile: async (targetPath) => options.textFiles?.[targetPath] ?? null,
     readPlistValue: async (plistPath) => options.plistValues?.[plistPath] ?? null,
     convertIconToPng: async (iconPath, size) => {
       convertedIcons.push({ iconPath, size })
@@ -95,6 +103,7 @@ describe('openTargetService', () => {
 
     expect(result.targets.map((target) => target.id)).toEqual(['explorer'])
     expect(result.primaryTargetId).toBe('explorer')
+    expect(result.targets[0]?.iconUrl).toBe('/api/open-targets/icons/explorer')
   })
 
   it('only includes the Linux file-manager fallback when xdg-open is available', async () => {
@@ -235,5 +244,88 @@ describe('openTargetService', () => {
     await state.service.getTargetIcon('finder')
 
     expect(state.convertedIcons).toEqual([{ iconPath: finderIcon, size: 64 }])
+  })
+
+  it('extracts Windows target icons from the resolved application executable', async () => {
+    const commandPath = 'C:\\Users\\nanmi\\AppData\\Local\\Programs\\Microsoft VS Code\\bin\\code.cmd'
+    const iconPath = 'C:\\Users\\nanmi\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe'
+    const state = createService('win32', {
+      commandPaths: {
+        'code.cmd': commandPath,
+      },
+      paths: {
+        [iconPath]: true,
+      },
+      iconData: new Uint8Array([4, 5, 6]),
+    })
+
+    const icon = await state.service.getTargetIcon('vscode')
+
+    expect(icon.contentType).toBe('image/png')
+    expect(Array.from(icon.data)).toEqual([4, 5, 6])
+    expect(state.convertedIcons).toEqual([{ iconPath, size: 64 }])
+  })
+
+  it('uses the Windows Explorer executable icon for the file-manager fallback', async () => {
+    const explorerPath = 'C:\\Windows\\explorer.exe'
+    const state = createService('win32', {
+      commandPaths: {
+        'explorer.exe': explorerPath,
+      },
+      paths: {
+        [explorerPath]: true,
+      },
+    })
+
+    await state.service.getTargetIcon('explorer')
+
+    expect(state.convertedIcons).toEqual([{ iconPath: explorerPath, size: 64 }])
+  })
+
+  it('extracts Linux target icons from matching desktop entries', async () => {
+    const desktopPath = '/usr/share/applications/code.desktop'
+    const iconPath = '/usr/share/pixmaps/code.png'
+    const state = createService('linux', {
+      commands: {
+        code: true,
+      },
+      dirNames: {
+        '/usr/share/applications': ['code.desktop'],
+      },
+      textFiles: {
+        [desktopPath]: [
+          '[Desktop Entry]',
+          'Name=Visual Studio Code',
+          'Exec=/usr/bin/code --reuse-window %F',
+          'Icon=code',
+        ].join('\n'),
+      },
+      paths: {
+        [iconPath]: true,
+      },
+    })
+
+    await state.service.getTargetIcon('vscode')
+
+    expect(state.convertedIcons).toEqual([{ iconPath, size: 64 }])
+  })
+
+  it('uses the Linux folder icon for the file-manager fallback when available', async () => {
+    const folderIcon = '/usr/share/icons/hicolor/64x64/apps/folder.png'
+    const state = createService('linux', {
+      commands: {
+        'xdg-open': true,
+      },
+      dirNames: {
+        '/usr/share/icons': ['hicolor'],
+      },
+      paths: {
+        [folderIcon]: true,
+      },
+    })
+
+    await state.service.getTargetIcon('file-manager')
+
+    expect(state.convertedIcons).toEqual([{ iconPath: folderIcon, size: 64 }])
   })
 })
