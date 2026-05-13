@@ -7,6 +7,7 @@ export type OpenTarget = {
   kind: OpenTargetKind
   label: string
   icon: string
+  iconUrl?: string
   platform: string
 }
 

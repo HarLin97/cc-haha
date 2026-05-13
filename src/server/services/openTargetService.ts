@@ -1,7 +1,7 @@
 import { execFile as execFileCallback } from 'node:child_process'
-import { stat } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
+import { homedir, tmpdir } from 'node:os'
+import { extname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { ApiError } from '../middleware/errorHandler.js'
 
@@ -17,6 +17,7 @@ export type OpenTarget = {
   kind: OpenTargetKind
   label: string
   icon: string
+  iconUrl?: string
   platform: OpenTargetPlatform
 }
 
@@ -34,6 +35,11 @@ export type OpenTargetLaunchResult = {
   stderr: string
 }
 
+export type OpenTargetIconResult = {
+  contentType: 'image/png'
+  data: Uint8Array
+}
+
 type Runtime = {
   platform: OpenTargetPlatform
   ttlMs: number
@@ -41,6 +47,9 @@ type Runtime = {
   commandExists: (command: string) => Promise<boolean>
   pathExists: (targetPath: string) => Promise<boolean>
   launch: (command: string, args: string[]) => Promise<OpenTargetLaunchResult>
+  readDirNames: (targetPath: string) => Promise<string[]>
+  readPlistValue: (plistPath: string, key: string) => Promise<string | null>
+  convertIconToPng: (iconPath: string, size: number) => Promise<Uint8Array>
 }
 
 type LaunchPlan = {
@@ -56,6 +65,7 @@ type TargetDefinition = {
   platforms: OpenTargetPlatform[]
   commands?: Partial<Record<OpenTargetPlatform, string[]>>
   appPaths?: Partial<Record<OpenTargetPlatform, string[]>>
+  iconPaths?: Partial<Record<OpenTargetPlatform, string[]>>
   fallback?: boolean
 }
 
@@ -157,6 +167,9 @@ const TARGET_DEFINITIONS: TargetDefinition[] = [
     label: 'Finder',
     icon: 'finder',
     platforms: ['darwin'],
+    iconPaths: {
+      darwin: ['/System/Library/CoreServices/Finder.app/Contents/Resources/Finder.icns'],
+    },
     fallback: true,
   },
   {
@@ -229,12 +242,67 @@ async function defaultLaunch(command: string, args: string[]): Promise<OpenTarge
   }
 }
 
+async function defaultReadDirNames(targetPath: string): Promise<string[]> {
+  try {
+    return await readdir(targetPath)
+  } catch {
+    return []
+  }
+}
+
+async function defaultReadPlistValue(plistPath: string, key: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFile('/usr/bin/plutil', [
+      '-extract',
+      key,
+      'raw',
+      '-o',
+      '-',
+      plistPath,
+    ], {
+      timeout: 3_000,
+      windowsHide: true,
+    })
+    const value = String(stdout ?? '').trim()
+    return value || null
+  } catch {
+    return null
+  }
+}
+
+async function defaultConvertIconToPng(iconPath: string, size: number): Promise<Uint8Array> {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'cc-haha-open-target-icon-'))
+  const outputPath = join(tmpDir, 'icon.png')
+  try {
+    await execFile('/usr/bin/sips', [
+      '-z',
+      String(size),
+      String(size),
+      '-s',
+      'format',
+      'png',
+      iconPath,
+      '--out',
+      outputPath,
+    ], {
+      timeout: 5_000,
+      windowsHide: true,
+    })
+    return await readFile(outputPath)
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true })
+  }
+}
+
 function buildOpenTarget(definition: TargetDefinition, platform: OpenTargetPlatform): OpenTarget {
   return {
     id: definition.id,
     kind: definition.kind,
     label: definition.label,
     icon: definition.icon,
+    iconUrl: platform === 'darwin'
+      ? `/api/open-targets/icons/${encodeURIComponent(definition.id)}`
+      : undefined,
     platform,
   }
 }
@@ -335,6 +403,63 @@ async function validateDirectory(targetPath: string): Promise<string> {
   return resolvedPath
 }
 
+function normalizeIconFileName(iconFile: string): string {
+  const trimmed = iconFile.trim()
+  if (!trimmed) return trimmed
+  return extname(trimmed) ? trimmed : `${trimmed}.icns`
+}
+
+async function findDarwinBundleIconPath(
+  appPath: string,
+  definition: TargetDefinition,
+  runtime: Runtime,
+): Promise<string | null> {
+  const resourcesPath = join(appPath, 'Contents', 'Resources')
+  const plistPath = join(appPath, 'Contents', 'Info.plist')
+  const plistIcon = await runtime.readPlistValue(plistPath, 'CFBundleIconFile')
+
+  const candidates = [
+    plistIcon ? normalizeIconFileName(plistIcon) : null,
+    `${definition.label}.icns`,
+    `${definition.icon}.icns`,
+  ].filter((value): value is string => Boolean(value))
+
+  for (const fileName of candidates) {
+    const iconPath = join(resourcesPath, fileName)
+    if (await runtime.pathExists(iconPath)) return iconPath
+  }
+
+  const iconFiles = await runtime.readDirNames(resourcesPath)
+  const firstIcon = iconFiles
+    .filter((fileName) => fileName.endsWith('.icns'))
+    .find((fileName) => !/document/i.test(fileName)) ?? null
+
+  if (!firstIcon) return null
+  const fallbackPath = join(resourcesPath, firstIcon)
+  return await runtime.pathExists(fallbackPath) ? fallbackPath : null
+}
+
+async function resolveIconPath(
+  definition: TargetDefinition,
+  runtime: Runtime,
+): Promise<string | null> {
+  if (runtime.platform !== 'darwin' || !isSupportedOnPlatform(definition, runtime.platform)) {
+    return null
+  }
+
+  for (const iconPath of definition.iconPaths?.darwin ?? []) {
+    if (await runtime.pathExists(iconPath)) return iconPath
+  }
+
+  for (const appPath of definition.appPaths?.darwin ?? []) {
+    if (!(await runtime.pathExists(appPath))) continue
+    const iconPath = await findDarwinBundleIconPath(appPath, definition, runtime)
+    if (iconPath) return iconPath
+  }
+
+  return null
+}
+
 export function createOpenTargetService(overrides: Partial<Runtime> = {}) {
   const runtime: Runtime = {
     platform: overrides.platform ?? process.platform,
@@ -343,9 +468,13 @@ export function createOpenTargetService(overrides: Partial<Runtime> = {}) {
     commandExists: overrides.commandExists ?? defaultCommandExists,
     pathExists: overrides.pathExists ?? defaultPathExists,
     launch: overrides.launch ?? defaultLaunch,
+    readDirNames: overrides.readDirNames ?? defaultReadDirNames,
+    readPlistValue: overrides.readPlistValue ?? defaultReadPlistValue,
+    convertIconToPng: overrides.convertIconToPng ?? defaultConvertIconToPng,
   }
 
   let cache: OpenTargetList | null = null
+  const iconCache = new Map<string, OpenTargetIconResult>()
 
   async function listTargets(forceRefresh = false): Promise<OpenTargetList> {
     if (!forceRefresh && cache && runtime.now() - cache.cachedAt < runtime.ttlMs) {
@@ -416,9 +545,47 @@ export function createOpenTargetService(overrides: Partial<Runtime> = {}) {
     }
   }
 
+  async function getTargetIcon(targetId: string, size = 64): Promise<OpenTargetIconResult> {
+    const definition = TARGET_DEFINITIONS.find((candidate) => candidate.id === targetId)
+    if (!definition) {
+      throw openTargetError(404, `Unknown open target icon: ${targetId}`, 'OPEN_TARGET_ICON_UNKNOWN')
+    }
+
+    const normalizedSize = Number.isFinite(size) ? Math.min(256, Math.max(16, Math.round(size))) : 64
+    const cacheKey = `${runtime.platform}:${targetId}:${normalizedSize}`
+    const cachedIcon = iconCache.get(cacheKey)
+    if (cachedIcon) return cachedIcon
+
+    const targets = await listTargets()
+    if (!targets.targets.some((target) => target.id === targetId)) {
+      throw openTargetError(
+        404,
+        `Open target icon is not available on ${runtime.platform}: ${targetId}`,
+        'OPEN_TARGET_ICON_UNAVAILABLE',
+      )
+    }
+
+    const iconPath = await resolveIconPath(definition, runtime)
+    if (!iconPath) {
+      throw openTargetError(
+        404,
+        `Open target icon is not available on ${runtime.platform}: ${targetId}`,
+        'OPEN_TARGET_ICON_UNAVAILABLE',
+      )
+    }
+
+    const icon = {
+      contentType: 'image/png' as const,
+      data: await runtime.convertIconToPng(iconPath, normalizedSize),
+    }
+    iconCache.set(cacheKey, icon)
+    return icon
+  }
+
   return {
     listTargets,
     openTarget,
+    getTargetIcon,
   }
 }
 

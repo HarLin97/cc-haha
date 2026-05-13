@@ -2,17 +2,41 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, Code2, FolderOpen } from 'lucide-react'
 import { useTranslation } from '../../i18n'
-import { useOpenTargetStore } from '../../stores/openTargetStore'
+import { useOpenTargetStore, type OpenTarget } from '../../stores/openTargetStore'
 
 type Props = {
   path: string | null | undefined
 }
 
-function getTargetIcon(kind: 'ide' | 'file_manager') {
+function getFallbackIcon(kind: 'ide' | 'file_manager', size = 17) {
   if (kind === 'file_manager') {
-    return <FolderOpen size={17} strokeWidth={1.9} />
+    return <FolderOpen size={size} strokeWidth={1.9} />
   }
-  return <Code2 size={17} strokeWidth={1.9} />
+  return <Code2 size={size} strokeWidth={1.9} />
+}
+
+function TargetIcon({ target, size = 18 }: { target: OpenTarget; size?: number }) {
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    setFailed(false)
+  }, [target.iconUrl])
+
+  if (target.iconUrl && !failed) {
+    return (
+      <img
+        src={target.iconUrl}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        onError={() => setFailed(true)}
+        className="block shrink-0 object-contain"
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+
+  return getFallbackIcon(target.kind, Math.max(16, size - 1))
 }
 
 export function OpenProjectMenu({ path }: Props) {
@@ -101,7 +125,7 @@ export function OpenProjectMenu({ path }: Props) {
             : 'w-8 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]'
         }`}
       >
-        {getTargetIcon(primaryTarget.kind)}
+        <TargetIcon target={primaryTarget} />
         {hasMenu && <ChevronDown size={14} strokeWidth={1.9} />}
       </button>
 
@@ -120,8 +144,8 @@ export function OpenProjectMenu({ path }: Props) {
               onClick={() => void handleOpenTarget(target.id)}
               className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm font-medium text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:bg-[var(--color-surface-hover)]"
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--color-surface-container)] text-[var(--color-text-secondary)]">
-                {getTargetIcon(target.kind)}
+              <span className="flex h-7 w-7 items-center justify-center text-[var(--color-text-secondary)]">
+                <TargetIcon target={target} size={24} />
               </span>
               <span className="min-w-0 truncate">{target.label}</span>
             </button>

@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { openTargetsApi, type OpenTarget } from '../api/openTargets'
 
+export type { OpenTarget } from '../api/openTargets'
+
 const CLIENT_CACHE_TTL_MS = 60_000
 
 type OpenTargetState = {

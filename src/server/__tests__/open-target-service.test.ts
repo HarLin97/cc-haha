@@ -13,12 +13,16 @@ function createService(
   options: {
     commands?: Record<string, boolean>
     paths?: Record<string, boolean>
+    plistValues?: Record<string, string | null>
+    dirNames?: Record<string, string[]>
     launchResult?: { code: number; stdout: string; stderr: string }
+    iconData?: Uint8Array
     ttlMs?: number
     now?: { value: number }
   } = {},
 ) {
   const launched: Array<{ command: string; args: string[] }> = []
+  const convertedIcons: Array<{ iconPath: string; size: number }> = []
   let commandProbes = 0
   let pathProbes = 0
   const now = options.now ?? { value: 100 }
@@ -39,11 +43,18 @@ function createService(
       launched.push({ command, args })
       return options.launchResult ?? { code: 0, stdout: '', stderr: '' }
     },
+    readDirNames: async (targetPath) => options.dirNames?.[targetPath] ?? [],
+    readPlistValue: async (plistPath) => options.plistValues?.[plistPath] ?? null,
+    convertIconToPng: async (iconPath, size) => {
+      convertedIcons.push({ iconPath, size })
+      return options.iconData ?? new Uint8Array([1, 2, 3])
+    },
   })
 
   return {
     service,
     launched,
+    convertedIcons,
     now,
     get commandProbes() {
       return commandProbes
@@ -73,6 +84,8 @@ describe('openTargetService', () => {
     ])
     expect(result.primaryTargetId).toBe('vscode')
     expect(result.targets.find((target) => target.id === 'finder')?.kind).toBe('file_manager')
+    expect(result.targets.find((target) => target.id === 'vscode')?.iconUrl)
+      .toBe('/api/open-targets/icons/vscode')
   })
 
   it('falls back to Explorer when no Windows IDE is detected', async () => {
@@ -186,5 +199,41 @@ describe('openTargetService', () => {
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+  })
+
+  it('extracts macOS target icons from the detected app bundle icon file', async () => {
+    const iconPath = '/Applications/Visual Studio Code.app/Contents/Resources/Code.icns'
+    const state = createService('darwin', {
+      paths: {
+        '/Applications/Visual Studio Code.app': true,
+        [iconPath]: true,
+      },
+      plistValues: {
+        '/Applications/Visual Studio Code.app/Contents/Info.plist': 'Code.icns',
+      },
+      iconData: new Uint8Array([9, 8, 7]),
+    })
+
+    const icon = await state.service.getTargetIcon('vscode')
+
+    expect(icon.contentType).toBe('image/png')
+    expect(Array.from(icon.data)).toEqual([9, 8, 7])
+    expect(state.convertedIcons).toEqual([{ iconPath, size: 64 }])
+
+    await state.service.getTargetIcon('vscode')
+    expect(state.convertedIcons).toHaveLength(1)
+  })
+
+  it('uses Finder system icon for the macOS file-manager fallback', async () => {
+    const finderIcon = '/System/Library/CoreServices/Finder.app/Contents/Resources/Finder.icns'
+    const state = createService('darwin', {
+      paths: {
+        [finderIcon]: true,
+      },
+    })
+
+    await state.service.getTargetIcon('finder')
+
+    expect(state.convertedIcons).toEqual([{ iconPath: finderIcon, size: 64 }])
   })
 })

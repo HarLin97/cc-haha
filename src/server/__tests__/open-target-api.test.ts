@@ -4,6 +4,7 @@ import { openTargetService } from '../services/openTargetService.js'
 
 let listTargetsSpy: ReturnType<typeof spyOn> | undefined
 let openTargetSpy: ReturnType<typeof spyOn> | undefined
+let getTargetIconSpy: ReturnType<typeof spyOn> | undefined
 
 function makeRequest(
   method: string,
@@ -30,6 +31,8 @@ describe('open-targets API', () => {
     listTargetsSpy = undefined
     openTargetSpy?.mockRestore()
     openTargetSpy = undefined
+    getTargetIconSpy?.mockRestore()
+    getTargetIconSpy = undefined
   })
 
   it('returns detected targets from GET /api/open-targets', async () => {
@@ -103,5 +106,21 @@ describe('open-targets API', () => {
       error: 'BAD_REQUEST',
       message: 'Invalid JSON body',
     })
+  })
+
+  it('returns a target icon as cacheable PNG', async () => {
+    getTargetIconSpy = spyOn(openTargetService, 'getTargetIcon').mockResolvedValue({
+      contentType: 'image/png',
+      data: new Uint8Array([1, 2, 3]),
+    })
+
+    const { req, url, segments } = makeRequest('GET', '/api/open-targets/icons/vscode')
+    const res = await handleOpenTargetsApi(req, url, segments)
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('image/png')
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=86400')
+    expect(getTargetIconSpy).toHaveBeenCalledWith('vscode')
+    expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual([1, 2, 3])
   })
 })
