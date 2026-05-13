@@ -11,6 +11,7 @@ export const PANEL_SLASH_COMMANDS = [
 
 export const SETTINGS_SLASH_COMMANDS = [
   { name: 'plugin', description: 'Open desktop plugin controls in Settings', tab: 'plugins' as const },
+  { name: 'memory', description: 'Open project memory files in Settings', tab: 'memory' as const },
   { name: 'doctor', description: 'Open Doctor in Diagnostics', tab: 'diagnostics' as const },
 ] as const
 
@@ -31,7 +32,6 @@ export const FALLBACK_SLASH_COMMANDS = [
   { name: 'config', description: 'Open configuration' },
   { name: 'login', description: 'Switch Anthropic accounts' },
   { name: 'logout', description: 'Sign out of current account' },
-  { name: 'memory', description: 'Edit CLAUDE.md memory files' },
   { name: 'model', description: 'Switch AI model' },
   { name: 'permissions', description: 'View or manage tool permissions' },
   { name: 'terminal-setup', description: 'Set up terminal integration' },

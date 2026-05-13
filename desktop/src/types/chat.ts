@@ -158,6 +158,12 @@ export type AgentTaskNotification = {
   outputFile?: string
 }
 
+export type MemoryEventFile = {
+  path: string
+  action?: 'saved' | 'updated' | 'created' | 'deleted' | 'loaded' | 'failed'
+  summary?: string
+}
+
 // ─── UI Message model (rendered in MessageList) ───────────────────
 
 export type TaskSummaryItem = {
@@ -174,6 +180,15 @@ export type UIMessage =
   | { id: string; type: 'tool_use'; toolName: string; toolUseId: string; input: unknown; timestamp: number; parentToolUseId?: string }
   | { id: string; type: 'tool_result'; toolUseId: string; content: unknown; isError: boolean; timestamp: number; parentToolUseId?: string }
   | { id: string; type: 'system'; content: string; timestamp: number }
+  | {
+      id: string
+      type: 'memory_event'
+      event: 'saved' | 'updated' | 'loaded' | 'failed'
+      files: MemoryEventFile[]
+      message?: string
+      teamCount?: number
+      timestamp: number
+    }
   | {
       id: string
       type: 'permission_request'

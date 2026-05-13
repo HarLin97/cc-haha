@@ -1,10 +1,10 @@
 import { useRef, useEffect, useMemo, memo, useState, useCallback, useLayoutEffect, type ReactNode } from 'react'
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown, BookMarked, Settings } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { sessionsApi, type SessionTurnCheckpoint } from '../../api/sessions'
 import { useChatStore } from '../../stores/chatStore'
 import { useWorkspaceChatContextStore } from '../../stores/workspaceChatContextStore'
-import { useTabStore } from '../../stores/tabStore'
+import { SETTINGS_TAB_ID, useTabStore } from '../../stores/tabStore'
 import { useTeamStore } from '../../stores/teamStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useTranslation } from '../../i18n'
@@ -25,6 +25,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog'
 
 type ToolCall = Extract<UIMessage, { type: 'tool_use' }>
 type ToolResult = Extract<UIMessage, { type: 'tool_result' }>
+type MemoryEvent = Extract<UIMessage, { type: 'memory_event' }>
 
 type RenderItem =
   | { kind: 'tool_group'; toolCalls: ToolCall[]; id: string }
@@ -391,6 +392,70 @@ function normalizeTurnCheckpoints(response: unknown): SessionTurnCheckpoint[] {
   const checkpoints = (response as { checkpoints?: unknown }).checkpoints
   if (!Array.isArray(checkpoints)) return []
   return checkpoints.filter(isSessionTurnCheckpoint)
+}
+
+function memoryFileLabel(path: string) {
+  const normalized = path.replace(/\\/g, '/')
+  return normalized.split('/').pop() || normalized
+}
+
+function openMemorySettings(path?: string) {
+  const ui = useUIStore.getState()
+  if (path) ui.setPendingMemoryPath(path)
+  ui.setPendingSettingsTab('memory')
+  useTabStore.getState().openTab(SETTINGS_TAB_ID, 'Settings', 'settings')
+}
+
+function MemoryEventCard({ message }: { message: MemoryEvent }) {
+  const t = useTranslation()
+  const visibleFiles = message.files.slice(0, 3)
+  const hiddenCount = Math.max(0, message.files.length - visibleFiles.length)
+
+  return (
+    <div className="mb-3 flex justify-center px-3">
+      <div className="w-full max-w-2xl rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-3.5 py-3 text-xs shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-brand)]">
+            <BookMarked size={15} aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-medium text-[var(--color-text-primary)]">
+                {t('chat.memorySavedTitle', { count: message.files.length })}
+              </div>
+              <button
+                type="button"
+                onClick={() => openMemorySettings(message.files[0]?.path)}
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 text-[11px] font-medium text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-brand)]/50 hover:text-[var(--color-text-primary)]"
+              >
+                <Settings size={13} aria-hidden="true" />
+                {t('chat.memoryOpenSettings')}
+              </button>
+            </div>
+            {message.message ? (
+              <div className="mt-1 text-[var(--color-text-tertiary)]">{message.message}</div>
+            ) : null}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {visibleFiles.map((file) => (
+                <span
+                  key={file.path}
+                  title={file.path}
+                  className="max-w-full truncate rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 font-mono text-[10px] text-[var(--color-text-secondary)]"
+                >
+                  {memoryFileLabel(file.path)}
+                </span>
+              ))}
+              {hiddenCount > 0 ? (
+                <span className="rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 font-mono text-[10px] text-[var(--color-text-tertiary)]">
+                  {t('chat.memoryMoreFiles', { count: hiddenCount })}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 type MessageListProps = {
@@ -910,6 +975,8 @@ export const MessageBlock = memo(function MessageBlock({
     }
     case 'task_summary':
       return <InlineTaskSummary tasks={message.tasks} />
+    case 'memory_event':
+      return <MemoryEventCard message={message} />
     case 'system':
       return (
         <div className="mb-3 text-center text-xs text-[var(--color-text-tertiary)]">

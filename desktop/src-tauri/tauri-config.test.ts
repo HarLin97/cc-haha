@@ -1,11 +1,15 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
+
+const currentDir = dirname(fileURLToPath(import.meta.url))
 
 describe('tauri security config', () => {
   it('allows desktop sidecar image URLs for opener icons', () => {
     const config = JSON.parse(
-      readFileSync(join(import.meta.dir, 'tauri.conf.json'), 'utf8'),
+      readFileSync(join(currentDir, 'tauri.conf.json'), 'utf8'),
     ) as {
       app?: {
         security?: {
