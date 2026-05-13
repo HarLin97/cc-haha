@@ -457,6 +457,15 @@ async function isDetected(definition: TargetDefinition, runtime: Runtime): Promi
     return true
   }
 
+  if (runtime.platform === 'darwin' && definition.appPaths?.darwin?.length) {
+    for (const appPath of definition.appPaths.darwin) {
+      if (await runtime.pathExists(appPath)) {
+        return true
+      }
+    }
+    return false
+  }
+
   for (const appPath of definition.appPaths?.[runtime.platform] ?? []) {
     if (await runtime.pathExists(appPath)) {
       return true
@@ -494,19 +503,17 @@ async function resolveLaunchPlan(
     }
   }
 
-  for (const command of definition.commands?.[runtime.platform] ?? []) {
-    if (await runtime.commandExists(command)) {
-      return { command, args: [targetPath] }
+  if (runtime.platform === 'darwin') {
+    for (const appPath of definition.appPaths?.darwin ?? []) {
+      if (await runtime.pathExists(appPath)) {
+        return { command: 'open', args: ['-a', appPath, targetPath] }
+      }
     }
   }
 
-  if (runtime.platform !== 'darwin') {
-    return null
-  }
-
-  for (const appPath of definition.appPaths?.darwin ?? []) {
-    if (await runtime.pathExists(appPath)) {
-      return { command: 'open', args: ['-a', appPath, targetPath] }
+  for (const command of definition.commands?.[runtime.platform] ?? []) {
+    if (await runtime.commandExists(command)) {
+      return { command, args: [targetPath] }
     }
   }
 

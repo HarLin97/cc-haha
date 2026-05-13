@@ -76,8 +76,8 @@ function createService(
 describe('openTargetService', () => {
   it('returns only detected IDE targets plus Finder on macOS', async () => {
     const { service } = createService('darwin', {
-      commands: { code: true },
       paths: {
+        '/Applications/Visual Studio Code.app': true,
         '/Applications/Sublime Text.app': true,
       },
     })
@@ -94,6 +94,21 @@ describe('openTargetService', () => {
     expect(result.targets.find((target) => target.id === 'finder')?.kind).toBe('file_manager')
     expect(result.targets.find((target) => target.id === 'vscode')?.iconUrl)
       .toBe('/api/open-targets/icons/vscode')
+  })
+
+  it('does not treat macOS command shims as installed IDEs without the app bundle', async () => {
+    const { service } = createService('darwin', {
+      commands: {
+        code: true,
+        goland: true,
+        pycharm: true,
+      },
+    })
+
+    const result = await service.listTargets()
+
+    expect(result.targets.map((target) => target.id)).toEqual(['finder'])
+    expect(result.primaryTargetId).toBe('finder')
   })
 
   it('falls back to Explorer when no Windows IDE is detected', async () => {
@@ -120,7 +135,7 @@ describe('openTargetService', () => {
 
   it('caches detection results until the TTL expires', async () => {
     const now = { value: 100 }
-    const state = createService('darwin', {
+    const state = createService('linux', {
       commands: { code: true },
       now,
     })
@@ -153,7 +168,9 @@ describe('openTargetService', () => {
     const dir = await makeDir()
     const file = join(dir, 'note.txt')
     await writeFile(file, 'not a directory')
-    const { service } = createService('darwin', { commands: { code: true } })
+    const { service } = createService('darwin', {
+      paths: { '/Applications/Visual Studio Code.app': true },
+    })
 
     try {
       await expect(service.openTarget({ targetId: 'vscode', path: file }))
@@ -163,9 +180,9 @@ describe('openTargetService', () => {
     }
   })
 
-  it('launches with argument arrays and the path as one argument', async () => {
+  it('launches command-first targets with argument arrays and the path as one argument', async () => {
     const dir = await makeDir('cc-haha open-target-')
-    const { service, launched } = createService('darwin', {
+    const { service, launched } = createService('linux', {
       commands: { code: true },
     })
 
@@ -178,9 +195,10 @@ describe('openTargetService', () => {
     }
   })
 
-  it('opens macOS app bundles through open -a when no command is present', async () => {
+  it('opens macOS app bundles through open -a instead of command shims', async () => {
     const dir = await makeDir()
     const { service, launched } = createService('darwin', {
+      commands: { cursor: true },
       paths: { '/Applications/Cursor.app': true },
     })
 
@@ -198,7 +216,7 @@ describe('openTargetService', () => {
   it('reports launch failures instead of returning success', async () => {
     const dir = await makeDir()
     const { service } = createService('darwin', {
-      commands: { code: true },
+      paths: { '/Applications/Visual Studio Code.app': true },
       launchResult: { code: 1, stdout: '', stderr: 'failed' },
     })
 
