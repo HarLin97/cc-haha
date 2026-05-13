@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { isEnabledPluginSettingValue } from '../../utils/plugins/dependencyResolver.js'
+import { clearInstalledPluginsCache } from '../../utils/plugins/installedPluginsManager.js'
+import { clearPluginCache, loadAllPluginsCacheOnly } from '../../utils/plugins/pluginLoader.js'
+import { resetSettingsCache } from '../../utils/settings/settingsCache.js'
 import { handlePluginsApi } from '../api/plugins.js'
 
 let tmpDir: string
@@ -31,9 +35,15 @@ describe('Plugins API', () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-plugins-api-'))
     originalConfigDir = process.env.CLAUDE_CONFIG_DIR
     process.env.CLAUDE_CONFIG_DIR = tmpDir
+    clearInstalledPluginsCache()
+    clearPluginCache('plugins-api-test-setup')
+    resetSettingsCache()
   })
 
   afterEach(async () => {
+    clearInstalledPluginsCache()
+    clearPluginCache('plugins-api-test-teardown')
+    resetSettingsCache()
     if (originalConfigDir === undefined) {
       delete process.env.CLAUDE_CONFIG_DIR
     } else {
@@ -58,6 +68,87 @@ describe('Plugins API', () => {
     expect(body.summary.total).toBe(0)
     expect(body.summary.enabled).toBe(0)
     expect(body.summary.errorCount).toBe(0)
+  })
+
+  it('treats enabledPlugins version constraint arrays as enabled plugins', async () => {
+    const marketplaceRoot = path.join(tmpDir, 'marketplace-root')
+    const pluginRoot = path.join(marketplaceRoot, 'plugins', 'demo')
+    const pluginsDir = path.join(tmpDir, 'plugins')
+    const marketplaceFile = path.join(marketplaceRoot, '.claude-plugin', 'marketplace.json')
+
+    await fs.mkdir(path.join(pluginRoot, '.claude-plugin'), { recursive: true })
+    await fs.mkdir(path.dirname(marketplaceFile), { recursive: true })
+    await fs.mkdir(pluginsDir, { recursive: true })
+
+    await fs.writeFile(
+      path.join(pluginRoot, '.claude-plugin', 'plugin.json'),
+      JSON.stringify({
+        name: 'demo',
+        version: '1.0.0',
+        description: 'Demo plugin',
+      }),
+      'utf-8',
+    )
+    await fs.writeFile(
+      marketplaceFile,
+      JSON.stringify({
+        name: 'test-market',
+        owner: { name: 'Test' },
+        plugins: [
+          {
+            name: 'demo',
+            source: './plugins/demo',
+            version: '1.0.0',
+          },
+        ],
+      }),
+      'utf-8',
+    )
+    await fs.writeFile(
+      path.join(pluginsDir, 'known_marketplaces.json'),
+      JSON.stringify({
+        'test-market': {
+          source: { source: 'directory', path: marketplaceRoot },
+          installLocation: marketplaceRoot,
+          lastUpdated: new Date(0).toISOString(),
+        },
+      }),
+      'utf-8',
+    )
+    await fs.writeFile(
+      path.join(tmpDir, 'settings.json'),
+      JSON.stringify({
+        enabledPlugins: {
+          'demo@test-market': ['^1.0.0'],
+        },
+      }),
+      'utf-8',
+    )
+
+    expect(isEnabledPluginSettingValue(true)).toBe(true)
+    expect(isEnabledPluginSettingValue(['^1.0.0'])).toBe(true)
+    expect(isEnabledPluginSettingValue(false)).toBe(false)
+    expect(isEnabledPluginSettingValue(undefined)).toBe(false)
+
+    const cacheOnlyResult = await loadAllPluginsCacheOnly()
+    expect(cacheOnlyResult.enabled).toContainEqual(
+      expect.objectContaining({ source: 'demo@test-market', enabled: true }),
+    )
+
+    clearPluginCache('plugins-api-test-full-load')
+
+    const { req, url, segments } = makeRequest('GET', '/api/plugins')
+    const res = await handlePluginsApi(req, url, segments)
+
+    expect(res.status).toBe(200)
+    const body = await res.json() as {
+      plugins: Array<{ id: string; enabled: boolean }>
+      summary: { enabled: number }
+    }
+    expect(body.plugins).toContainEqual(
+      expect.objectContaining({ id: 'demo@test-market', enabled: true }),
+    )
+    expect(body.summary.enabled).toBe(1)
   })
 
   it('POST /api/plugins/reload returns numeric counters', async () => {

@@ -89,6 +89,32 @@ describe('Skills API', () => {
     expect(body.skills).toContainEqual(expect.objectContaining({ name: 'project-skill', source: 'project' }))
   })
 
+  it('lists user skills installed through a directory symlink or junction', async () => {
+    const linkedSkillsRoot = path.join(tmpHome, '.agents', 'skills')
+    const userSkillsRoot = path.join(tmpHome, '.claude', 'skills')
+    const projectRoot = path.join(tmpHome, 'workspace')
+    const cwd = path.join(projectRoot, 'packages', 'app')
+
+    await writeSkill(
+      linkedSkillsRoot,
+      'linked-skill',
+      ['---', 'description: Linked skill', '---', '', '# Linked skill'].join('\n'),
+    )
+    await fs.mkdir(userSkillsRoot, { recursive: true })
+    await fs.symlink(
+      path.join(linkedSkillsRoot, 'linked-skill'),
+      path.join(userSkillsRoot, 'linked-skill'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    )
+
+    const { req, url, segments } = makeRequest(`/api/skills?cwd=${encodeURIComponent(cwd)}`)
+    const res = await handleSkillsApi(req, url, segments)
+
+    expect(res.status).toBe(200)
+    const body = await res.json() as { skills: Array<{ name: string; source: string }> }
+    expect(body.skills).toContainEqual(expect.objectContaining({ name: 'linked-skill', source: 'user' }))
+  })
+
   it('resolves project skill details from the nearest project skills directory', async () => {
     const projectRoot = path.join(tmpHome, 'workspace')
     const nestedRoot = path.join(projectRoot, 'packages', 'app')
