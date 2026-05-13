@@ -219,6 +219,37 @@ describe('chatStore history mapping', () => {
     expect(mapped[3]).toMatchObject({ parentToolUseId: 'agent-1' })
   })
 
+  it('restores saved memory system events from transcript history', () => {
+    const messages: MessageEntry[] = [
+      {
+        id: 'memory-1',
+        type: 'system',
+        timestamp: '2026-04-06T00:00:00.000Z',
+        content: {
+          subtype: 'memory_saved',
+          writtenPaths: ['/Users/test/.claude/projects/example/memory/preferences.md'],
+          teamCount: 0,
+        },
+      },
+    ]
+
+    const mapped = mapHistoryMessagesToUiMessages(messages)
+
+    expect(mapped).toMatchObject([
+      {
+        id: 'memory-1',
+        type: 'memory_event',
+        event: 'saved',
+        files: [
+          {
+            path: '/Users/test/.claude/projects/example/memory/preferences.md',
+            action: 'saved',
+          },
+        ],
+      },
+    ])
+  })
+
   it('merges consecutive assistant text blocks when restoring transcript history', () => {
     const messages: MessageEntry[] = [
       {
@@ -1081,6 +1112,43 @@ describe('chatStore history mapping', () => {
 
     expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).toMatchObject([
       { type: 'system', content: 'Context compacted' },
+    ])
+  })
+
+  it('renders memory saved notifications as chat memory events', () => {
+    useChatStore.setState({
+      sessions: {
+        [TEST_SESSION_ID]: makeSession({
+          messages: [],
+          chatState: 'idle',
+        }),
+      },
+    })
+
+    useChatStore.getState().handleServerMessage(TEST_SESSION_ID, {
+      type: 'system_notification',
+      subtype: 'memory_saved',
+      message: 'Saved 2 memories',
+      data: {
+        writtenPaths: [
+          '/Users/test/.claude/projects/example/memory/preferences.md',
+          '/Users/test/.claude/projects/example/memory/team/MEMORY.md',
+        ],
+        teamCount: 1,
+      },
+    })
+
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).toMatchObject([
+      {
+        type: 'memory_event',
+        event: 'saved',
+        message: 'Saved 2 memories',
+        teamCount: 1,
+        files: [
+          { path: '/Users/test/.claude/projects/example/memory/preferences.md', action: 'saved' },
+          { path: '/Users/test/.claude/projects/example/memory/team/MEMORY.md', action: 'saved' },
+        ],
+      },
     ])
   })
 

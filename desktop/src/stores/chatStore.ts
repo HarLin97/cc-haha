@@ -19,6 +19,7 @@ import type {
   ChatState,
   ComputerUsePermissionRequest,
   ComputerUsePermissionResponse,
+  MemoryEventFile,
   UIAttachment,
   UIMessage,
   ServerMessage,
@@ -208,6 +209,23 @@ function appendAssistantTextMessage(
       ...(model ? { model } : {}),
     },
   ]
+}
+
+function normalizeMemoryEventFiles(data: unknown): MemoryEventFile[] {
+  if (!data || typeof data !== 'object') return []
+  const writtenPaths = (data as { writtenPaths?: unknown }).writtenPaths
+  if (!Array.isArray(writtenPaths)) return []
+  return writtenPaths
+    .filter((path): path is string => typeof path === 'string' && path.trim().length > 0)
+    .map((path) => ({ path, action: 'saved' as const }))
+}
+
+function normalizeMemoryTeamCount(data: unknown): number | undefined {
+  if (!data || typeof data !== 'object') return undefined
+  const teamCount = (data as { teamCount?: unknown }).teamCount
+  return typeof teamCount === 'number' && Number.isFinite(teamCount)
+    ? teamCount
+    : undefined
 }
 
 function normalizeNotificationPreview(content: string): string {
@@ -922,6 +940,25 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             ],
           }))
         }
+        if (msg.subtype === 'memory_saved') {
+          const files = normalizeMemoryEventFiles(msg.data)
+          if (files.length > 0) {
+            update((session) => ({
+              messages: [
+                ...session.messages,
+                {
+                  id: nextId(),
+                  type: 'memory_event',
+                  event: 'saved',
+                  files,
+                  message: msg.message,
+                  teamCount: normalizeMemoryTeamCount(msg.data),
+                  timestamp: Date.now(),
+                },
+              ],
+            }))
+          }
+        }
         if (msg.subtype === 'task_notification' && msg.data && typeof msg.data === 'object') {
           const data = msg.data as Record<string, unknown>
           const toolUseId =
@@ -1336,6 +1373,25 @@ export function mapHistoryMessagesToUiMessages(
           attachments: allAttachments.length > 0 ? allAttachments : undefined,
           timestamp,
         })
+      }
+    }
+    if (msg.type === 'system' && msg.content && typeof msg.content === 'object') {
+      const subtype = (msg.content as { subtype?: unknown }).subtype
+      if (subtype === 'memory_saved') {
+        const files = normalizeMemoryEventFiles(msg.content)
+        if (files.length > 0) {
+          uiMessages.push({
+            id: msg.id || nextId(),
+            type: 'memory_event',
+            event: 'saved',
+            files,
+            message: typeof (msg.content as { message?: unknown }).message === 'string'
+              ? (msg.content as { message: string }).message
+              : undefined,
+            teamCount: normalizeMemoryTeamCount(msg.content),
+            timestamp,
+          })
+        }
       }
     }
   }

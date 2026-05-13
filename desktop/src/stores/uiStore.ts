@@ -39,6 +39,7 @@ export type SettingsTab =
   | 'mcp'
   | 'agents'
   | 'skills'
+  | 'memory'
   | 'plugins'
   | 'computerUse'
   | 'diagnostics'
@@ -51,6 +52,7 @@ type UIStore = {
   sidebarOpen: boolean
   activeView: ActiveView
   pendingSettingsTab: SettingsTab | null
+  pendingMemoryPath: string | null
   activeModal: string | null
   toasts: Toast[]
 
@@ -60,6 +62,7 @@ type UIStore = {
   setSidebarOpen: (open: boolean) => void
   setActiveView: (view: ActiveView) => void
   setPendingSettingsTab: (tab: SettingsTab | null) => void
+  setPendingMemoryPath: (path: string | null) => void
   openModal: (id: string) => void
   closeModal: () => void
   addToast: (toast: Omit<Toast, 'id'>) => void
@@ -73,6 +76,7 @@ export const useUIStore = create<UIStore>((set) => ({
   sidebarOpen: true,
   activeView: 'code',
   pendingSettingsTab: null,
+  pendingMemoryPath: null,
   activeModal: null,
   toasts: [],
 
@@ -96,6 +100,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setActiveView: (view) => set({ activeView: view }),
   setPendingSettingsTab: (tab) => set({ pendingSettingsTab: tab }),
+  setPendingMemoryPath: (path) => set({ pendingMemoryPath: path }),
   openModal: (id) => set({ activeModal: id }),
   closeModal: () => set({ activeModal: null }),
 

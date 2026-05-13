@@ -6,6 +6,7 @@ import { sessionsApi } from '../../api/sessions'
 import { useChatStore } from '../../stores/chatStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useTabStore } from '../../stores/tabStore'
+import { useUIStore } from '../../stores/uiStore'
 import type { UIMessage } from '../../types/chat'
 import type { PerSessionState } from '../../stores/chatStore'
 
@@ -46,6 +47,7 @@ describe('MessageList nested tool calls', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     useSettingsStore.setState({ locale: 'en' })
+    useUIStore.setState({ pendingSettingsTab: null })
     useTabStore.setState({ activeTabId: ACTIVE_TAB, tabs: [{ sessionId: ACTIVE_TAB, title: 'Test', type: 'session' as const, status: 'idle' }] })
     useChatStore.setState({ sessions: { [ACTIVE_TAB]: makeSessionState() } })
     vi.spyOn(sessionsApi, 'getTurnCheckpoints').mockImplementation(
@@ -137,6 +139,39 @@ describe('MessageList nested tool calls', () => {
 
     const { container } = render(<MessageList />)
     expect(container.querySelectorAll('[data-message-shell="assistant"]')).toHaveLength(0)
+  })
+
+  it('renders saved memory events with an entrypoint to memory settings', () => {
+    useChatStore.setState({
+      sessions: {
+        [ACTIVE_TAB]: makeSessionState({
+          messages: [
+            {
+              id: 'memory-1',
+              type: 'memory_event',
+              event: 'saved',
+              files: [
+                { path: '/Users/test/.claude/projects/example/memory/preferences.md', action: 'saved' },
+              ],
+              timestamp: 1,
+            },
+          ],
+        }),
+      },
+    })
+
+    render(<MessageList sessionId={ACTIVE_TAB} />)
+
+    expect(screen.getByText('Saved 1 memory file(s)')).toBeTruthy()
+    expect(screen.getByText('preferences.md')).toBeTruthy()
+
+    const openButton = screen.getByText('Open Memory').closest('button')
+    expect(openButton).toBeTruthy()
+    fireEvent.click(openButton!)
+
+    expect(useUIStore.getState().pendingSettingsTab).toBe('memory')
+    expect(useUIStore.getState().pendingMemoryPath).toBe('/Users/test/.claude/projects/example/memory/preferences.md')
+    expect(useTabStore.getState().activeTabId).toBe('__settings__')
   })
 
   it('keeps root tool runs split when nested child tool calls appear between them', () => {

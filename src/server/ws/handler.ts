@@ -884,7 +884,7 @@ async function ensureCliSessionStarted(
   }
 }
 
-function translateCliMessage(cliMsg: any, sessionId: string): ServerMessage[] {
+export function translateCliMessage(cliMsg: any, sessionId: string): ServerMessage[] {
   const streamState = getStreamState(sessionId)
   switch (cliMsg.type) {
     case 'assistant': {
@@ -1182,6 +1182,18 @@ function translateCliMessage(cliMsg: any, sessionId: string): ServerMessage[] {
           })
         }
         return messages
+      }
+      if (subtype === 'memory_saved') {
+        return [{
+          type: 'system_notification',
+          subtype: 'memory_saved',
+          message: cliMsg.message,
+          data: {
+            writtenPaths: Array.isArray(cliMsg.writtenPaths) ? cliMsg.writtenPaths : [],
+            teamCount: typeof cliMsg.teamCount === 'number' ? cliMsg.teamCount : undefined,
+            verb: typeof cliMsg.verb === 'string' ? cliMsg.verb : undefined,
+          },
+        }]
       }
       if (subtype === 'hook_started' || subtype === 'hook_response') {
         // Hook 执行中 — 不转发给前端
