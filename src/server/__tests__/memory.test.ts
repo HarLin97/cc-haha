@@ -83,6 +83,32 @@ describe('memory API', () => {
     expect(filesBody.files.some((file) => file.path === 'notes/manual.md')).toBe(true)
   })
 
+  it('uses session metadata for project labels when sanitized paths contain non-ascii characters', async () => {
+    const cwd = path.join(tmpDir, '中文 项目', 'GLM', '5V', 'turbo')
+    const projectId = sanitizePath(cwd)
+    const projectDir = path.join(tmpDir, 'projects', projectId)
+    const memoryDir = path.join(projectDir, 'memory')
+    await fs.mkdir(memoryDir, { recursive: true })
+    await fs.writeFile(path.join(memoryDir, 'MEMORY.md'), '# Project Memory')
+    await fs.writeFile(
+      path.join(projectDir, 'session.jsonl'),
+      JSON.stringify({
+        type: 'user',
+        cwd,
+        message: { role: 'user', content: 'hello' },
+      }) + '\n',
+    )
+
+    const projectsRes = await request('GET', '/api/memory/projects')
+    expect(projectsRes.status).toBe(200)
+    const projectsBody = await projectsRes.json() as {
+      projects: Array<{ id: string; label: string }>
+    }
+
+    const project = projectsBody.projects.find((item) => item.id === projectId)
+    expect(project).toMatchObject({ label: cwd })
+  })
+
   it('reads and writes only markdown files inside the project memory directory', async () => {
     const projectId = sanitizePath(path.join(tmpDir, 'workspace', 'app'))
 
@@ -143,4 +169,3 @@ function request(method: string, pathname: string, body?: Record<string, unknown
     url.pathname.split('/').filter(Boolean),
   )
 }
-

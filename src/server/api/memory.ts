@@ -13,6 +13,7 @@ import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
 import { parseFrontmatter } from '../../utils/frontmatterParser.js'
 import { findCanonicalGitRoot } from '../../utils/git.js'
 import { sanitizePath } from '../../utils/path.js'
+import { extractJsonStringField } from '../../utils/sessionStoragePortable.js'
 import { getCwd } from '../../utils/cwd.js'
 import { parseMemoryType } from '../../memdir/memoryTypes.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
@@ -39,6 +40,8 @@ type MemoryFile = {
 
 const MAX_MEMORY_FILE_BYTES = 512 * 1024
 const MAX_MEMORY_FILES = 500
+const PROJECT_LABEL_SESSION_SCAN_LIMIT = 10
+const PROJECT_LABEL_HEAD_BYTES = 64 * 1024
 
 export async function handleMemoryApi(
   req: Request,
@@ -74,7 +77,8 @@ export async function handleMemoryApi(
 
 async function listMemoryProjects(cwd?: string): Promise<MemoryProject[]> {
   const projectsDir = getProjectsDir()
-  const currentProjectId = getProjectIdForCwd(cwd || getCwd())
+  const currentCwd = cwd || getCwd()
+  const currentProjectId = getProjectIdForCwd(currentCwd)
   const projects = new Map<string, MemoryProject>()
 
   addProject(projects, currentProjectId, true)
@@ -93,9 +97,13 @@ async function listMemoryProjects(cwd?: string): Promise<MemoryProject[]> {
 
   const resolved = await Promise.all(
     Array.from(projects.values()).map(async project => {
-      const fileCount = await countMarkdownFiles(project.memoryDir)
+      const [fileCount, label] = await Promise.all([
+        countMarkdownFiles(project.memoryDir),
+        resolveProjectLabel(project.id, currentCwd),
+      ])
       return {
         ...project,
+        label,
         exists: fileCount > 0 || (await directoryExists(project.memoryDir)),
         fileCount,
       }
@@ -359,6 +367,61 @@ function getProjectsDir(): string {
 
 function getProjectIdForCwd(cwd: string): string {
   return sanitizePath(findCanonicalGitRoot(cwd) ?? cwd)
+}
+
+async function resolveProjectLabel(projectId: string, currentCwd: string): Promise<string> {
+  const currentRoot = findCanonicalGitRoot(currentCwd) ?? currentCwd
+  if (sanitizePath(currentRoot) === projectId) return currentRoot
+
+  const sessionPath = await inferProjectPathFromSessionFiles(projectId)
+  return sessionPath ?? unsanitizeProjectLabel(projectId)
+}
+
+async function inferProjectPathFromSessionFiles(projectId: string): Promise<string | undefined> {
+  const projectDir = path.join(getProjectsDir(), projectId)
+  let entries: import('node:fs').Dirent[]
+  try {
+    entries = await fs.readdir(projectDir, { withFileTypes: true })
+  } catch {
+    return undefined
+  }
+
+  const sessionFiles: Array<{ filePath: string; mtimeMs: number }> = []
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue
+    const filePath = path.join(projectDir, entry.name)
+    try {
+      const stat = await fs.stat(filePath)
+      sessionFiles.push({ filePath, mtimeMs: stat.mtimeMs })
+    } catch {
+      // A racing delete should not hide the rest of the memory projects.
+    }
+  }
+
+  sessionFiles.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  for (const { filePath } of sessionFiles.slice(0, PROJECT_LABEL_SESSION_SCAN_LIMIT)) {
+    const head = await readFileHead(filePath, PROJECT_LABEL_HEAD_BYTES)
+    const candidate =
+      extractJsonStringField(head, 'cwd') ??
+      extractJsonStringField(head, 'workDir') ??
+      extractJsonStringField(head, 'projectPath')
+    if (candidate && path.isAbsolute(candidate)) return candidate.normalize('NFC')
+  }
+
+  return undefined
+}
+
+async function readFileHead(filePath: string, bytes: number): Promise<string> {
+  const handle = await fs.open(filePath, 'r')
+  try {
+    const buffer = Buffer.alloc(bytes)
+    const { bytesRead } = await handle.read(buffer, 0, bytes, 0)
+    return buffer.subarray(0, bytesRead).toString('utf-8')
+  } catch {
+    return ''
+  } finally {
+    await handle.close()
+  }
 }
 
 function unsanitizeProjectLabel(projectId: string): string {
