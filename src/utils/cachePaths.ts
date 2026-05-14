@@ -3,7 +3,13 @@ import { join } from 'path'
 import { getFsImplementation } from './fsOperations.js'
 import { djb2Hash } from './hash.js'
 
-const paths = envPaths('claude-cli')
+// When CLAUDE_CONFIG_DIR is set (portable mode), place cache under it
+// so the install is fully self-contained. Otherwise fall back to the
+// system default (%LOCALAPPDATA%\claude-cli-nodejs\Cache on Windows).
+const claudConfigDir = (process.env as Record<string, string | undefined>).CLAUDE_CONFIG_DIR
+const paths: { cache: string } = claudConfigDir
+  ? { cache: join(claudConfigDir, 'Cache') }
+  : envPaths('claude-cli')
 
 // Local sanitizePath using djb2Hash — NOT the shared version from
 // sessionStoragePortable.ts which uses Bun.hash (wyhash) when available.
