@@ -803,6 +803,9 @@ export const zh: Record<TranslationKey, string> = {
   'settings.general.webSearchBraveFreeHint': '注册账号后可创建 Search API Key，免费额度可用于测试。',
   'settings.general.webSearchHint': '自动模式会对 Claude 模型名优先使用原生 WebSearch，失败或非 Claude 模型时再使用 Tavily/Brave。',
   'settings.general.webSearchSave': '保存',
+  'settings.general.uiZoom': '界面缩放',
+  'settings.general.uiZoomDescription': '调整整个界面的显示大小。',
+  'settings.general.uiZoomReset': '重置界面缩放到 100%',
 
   // ─── Empty Session ──────────────────────────────────────
   'empty.title': '新建会话',

@@ -5,9 +5,22 @@ import { modelsApi } from '../api/models'
 import { h5AccessApi } from '../api/h5Access'
 import { isThemeMode, type H5AccessSettings, type PermissionMode, type EffortLevel, type ModelInfo, type ThemeMode, type WebSearchSettings } from '../types/settings'
 import type { Locale } from '../i18n'
+import {
+  APP_ZOOM_CONTROL_STEP,
+  DEFAULT_APP_ZOOM,
+  MAX_APP_ZOOM,
+  MIN_APP_ZOOM,
+  applyAppZoomLevel,
+  normalizeAppZoomLevel,
+  readStoredAppZoomLevel,
+} from '../lib/appZoom'
 import { useUIStore } from './uiStore'
 
 const LOCALE_STORAGE_KEY = 'cc-haha-locale'
+export const UI_ZOOM_MIN = MIN_APP_ZOOM
+export const UI_ZOOM_MAX = MAX_APP_ZOOM
+export const UI_ZOOM_STEP = APP_ZOOM_CONTROL_STEP
+export const UI_ZOOM_DEFAULT = DEFAULT_APP_ZOOM
 let desktopNotificationsSaveQueue: Promise<void> = Promise.resolve()
 
 function getStoredLocale(): Locale {
@@ -33,6 +46,7 @@ type SettingsStore = {
   h5Access: H5AccessSettings
   h5AccessError: string | null
   responseLanguage: string
+  uiZoom: number
   isLoading: boolean
   error: string | null
 
@@ -55,6 +69,7 @@ type SettingsStore = {
     publicBaseUrl?: string | null
   }) => Promise<void>
   setResponseLanguage: (language: string) => Promise<void>
+  setUiZoom: (zoom: number) => void
 }
 
 const DEFAULT_H5_ACCESS_SETTINGS: H5AccessSettings = {
@@ -79,8 +94,15 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   h5Access: DEFAULT_H5_ACCESS_SETTINGS,
   h5AccessError: null,
   responseLanguage: '',
+  uiZoom: readStoredAppZoomLevel(),
   isLoading: false,
   error: null,
+
+  setUiZoom: (zoom: number) => {
+    const level = normalizeAppZoomLevel(zoom)
+    set({ uiZoom: level })
+    void applyAppZoomLevel(level)
+  },
 
   fetchAll: async () => {
     set({ isLoading: true, error: null })
