@@ -237,9 +237,9 @@ struct TerminalConfig {
 
 impl TerminalConfig {
     fn load(app: &AppHandle) -> Self {
-        let path = match app.path().app_config_dir() {
-            Ok(dir) => dir.join(TERMINAL_CONFIG_FILE),
-            Err(_) => return Self::default(),
+        let path = match terminal_config_path(app) {
+            Some(p) => p,
+            None => return Self::default(),
         };
         fs::read_to_string(&path)
             .ok()
@@ -248,10 +248,7 @@ impl TerminalConfig {
     }
 
     fn save(&self, app: &AppHandle) {
-        let path = match app.path().app_config_dir() {
-            Ok(dir) => dir.join(TERMINAL_CONFIG_FILE),
-            Err(_) => return,
-        };
+        let Some(path) = terminal_config_path(app) else { return };
         if let Some(parent) = path.parent() {
             if let Err(err) = fs::create_dir_all(parent) {
                 eprintln!("[desktop] failed to create terminal config directory: {err}");
@@ -269,6 +266,21 @@ impl TerminalConfig {
             eprintln!("[desktop] failed to write terminal config: {err}");
         }
     }
+}
+
+fn terminal_config_path(app: &AppHandle) -> Option<PathBuf> {
+    // honour CLAUDE_CONFIG_DIR for portable installs
+    std::env::var("CLAUDE_CONFIG_DIR").ok().map(|dir| {
+        PathBuf::from(&dir).join(TERMINAL_CONFIG_FILE)
+    }).or_else(|| {
+        match app.path().app_config_dir() {
+            Ok(dir) => Some(dir.join(TERMINAL_CONFIG_FILE)),
+            Err(err) => {
+                eprintln!("[desktop] failed to resolve app config dir: {err}");
+                None
+            }
+        }
+    })
 }
 
 impl Default for TerminalConfig {
@@ -471,13 +483,24 @@ fn is_window_state_visible_on_any_monitor(
 }
 
 fn window_state_path(app: &AppHandle) -> Option<PathBuf> {
-    match app.path().app_config_dir() {
-        Ok(dir) => Some(dir.join(WINDOW_STATE_FILE)),
-        Err(err) => {
-            eprintln!("[desktop] failed to resolve app config dir: {err}");
-            None
+    // honour CLAUDE_CONFIG_DIR so portable installs keep window-state.json
+    // and terminal-config.json alongside the config dir instead of
+    // %APPDATA%\com.claude-code-haha.desktop\.
+    resolve_portable_state_path().or_else(|| {
+        match app.path().app_config_dir() {
+            Ok(dir) => Some(dir.join(WINDOW_STATE_FILE)),
+            Err(err) => {
+                eprintln!("[desktop] failed to resolve app config dir: {err}");
+                None
+            }
         }
-    }
+    })
+}
+
+fn resolve_portable_state_path() -> Option<PathBuf> {
+    std::env::var("CLAUDE_CONFIG_DIR").ok().map(|dir| {
+        PathBuf::from(&dir).join(WINDOW_STATE_FILE)
+    })
 }
 
 fn read_stored_window_state(app: &AppHandle) -> Option<StoredWindowState> {
@@ -1234,9 +1257,25 @@ fn start_server_sidecar(app: &AppHandle) -> Result<ServerRuntime, String> {
     for (key, value) in terminal_environment(&default_shell(None)) {
         sidecar = sidecar.env(key, value);
     }
-    sidecar = sidecar
-        .env("CLAUDE_H5_AUTO_PUBLIC_URL", "1")
-        .env("CLAUDE_H5_DIST_DIR", h5_dist_dir);
+    // Pass through CLAUDE_CONFIG_DIR so the sidecar (Node.js) uses the same
+    // portable config directory. Also set XDG_CACHE_HOME to redirect the
+    // env-paths cache from %LOCALAPPDATA%\claude-cli-nodejs\ to alongside
+    // the portable config dir.
+    if let Ok(config_dir) = std::env::var("CLAUDE_CONFIG_DIR") {
+        let cache_dir = PathBuf::from(&config_dir).join("Cache");
+        if let Err(e) = fs::create_dir_all(&cache_dir) {
+            eprintln!("[desktop] failed to create Cache dir: {e}");
+        }
+        sidecar = sidecar
+            .env("CLAUDE_CONFIG_DIR", &config_dir)
+            .env("XDG_CACHE_HOME", cache_dir.to_string_lossy().to_string())
+            .env("CLAUDE_H5_AUTO_PUBLIC_URL", "1")
+            .env("CLAUDE_H5_DIST_DIR", h5_dist_dir);
+    } else {
+        sidecar = sidecar
+            .env("CLAUDE_H5_AUTO_PUBLIC_URL", "1")
+            .env("CLAUDE_H5_DIST_DIR", h5_dist_dir);
+    }
     let sidecar = sidecar.args([
         "server",
         "--app-root",
@@ -1354,7 +1393,15 @@ fn start_adapters_sidecars(app: &AppHandle) -> Result<Vec<CommandChild>, String>
         for (key, value) in terminal_environment(&default_shell(None)) {
             sidecar = sidecar.env(key, value);
         }
-        let sidecar = sidecar.env("ADAPTER_SERVER_URL", &server_ws_url).args([
+        // Pass through CLAUDE_CONFIG_DIR for portable installs
+        let mut sidecar_final = sidecar.env("ADAPTER_SERVER_URL", &server_ws_url);
+        if let Ok(config_dir) = std::env::var("CLAUDE_CONFIG_DIR") {
+            let cache_dir = PathBuf::from(&config_dir).join("Cache");
+            sidecar_final = sidecar_final
+                .env("CLAUDE_CONFIG_DIR", &config_dir)
+                .env("XDG_CACHE_HOME", cache_dir.to_string_lossy().to_string());
+        }
+        let sidecar = sidecar_final.args([
             "adapters",
             "--app-root",
             &app_root_arg,
