@@ -1835,6 +1835,7 @@ function H5AccessSettings() {
     updateH5AccessSettings,
   } = useSettingsStore()
   const t = useTranslation()
+  const addToast = useUIStore((s) => s.addToast)
   const [h5PublicBaseUrlDraft, setH5PublicBaseUrlDraft] = useState(h5Access.publicBaseUrl ?? '')
   const [h5GeneratedToken, setH5GeneratedToken] = useState<string | null>(null)
   const [h5TokenVisible, setH5TokenVisible] = useState(false)
@@ -1895,12 +1896,20 @@ function H5AccessSettings() {
 
   const handleH5UrlCopy = async () => {
     if (!h5AccessUrl) return
-    await copyTextToClipboard(h5AccessUrl)
+    const copied = await copyTextToClipboard(h5AccessUrl)
+    addToast({
+      type: copied ? 'success' : 'error',
+      message: copied ? t('settings.general.h5AccessUrlCopied') : t('common.copyFailed'),
+    })
   }
 
   const handleH5LaunchUrlCopy = async () => {
     if (!h5LaunchUrl) return
-    await copyTextToClipboard(h5LaunchUrl)
+    const copied = await copyTextToClipboard(h5LaunchUrl)
+    addToast({
+      type: copied ? 'success' : 'error',
+      message: copied ? t('settings.general.h5AccessLaunchUrlCopied') : t('common.copyFailed'),
+    })
   }
 
   const handleH5EnableConfirm = async () => {

@@ -245,6 +245,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useWorkspaceChatContextStore } from '../../stores/workspaceChatContextStore'
 import { useWorkspacePanelStore } from '../../stores/workspacePanelStore'
+import { useUIStore } from '../../stores/uiStore'
 import { WorkspacePanel } from './WorkspacePanel'
 
 describe('WorkspacePanel', () => {
@@ -1258,6 +1259,10 @@ describe('WorkspacePanel', () => {
         expect(execCommand).toHaveBeenCalledWith('copy')
       })
       expect(writeText).toHaveBeenCalledWith('/repo/src/App.tsx')
+      expect(useUIStore.getState().toasts[useUIStore.getState().toasts.length - 1]).toMatchObject({
+        type: 'success',
+        message: 'Path copied.',
+      })
     } finally {
       Object.defineProperty(document, 'execCommand', {
         configurable: true,

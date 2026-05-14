@@ -14,6 +14,7 @@ export const en = {
   'common.enable': 'Enable',
   'common.disable': 'Disable',
   'common.active': 'ACTIVE',
+  'common.copyFailed': 'Copy failed.',
 
   // ─── Sidebar ──────────────────────────────────────
   'sidebar.newSession': 'New session',
@@ -92,6 +93,7 @@ export const en = {
   'workspace.addToChat': 'Add to chat',
   'workspace.addSelectionToChat': 'Add to chat',
   'workspace.copyPath': 'Copy path',
+  'workspace.pathCopied': 'Path copied.',
   'workspace.localComment': 'Local comment',
   'workspace.commentLine': 'Comment line {line}',
   'workspace.commentLineTarget': 'Line {line}',
@@ -760,6 +762,8 @@ export const en = {
   'settings.general.h5AccessCopy': 'Copy',
   'settings.general.h5AccessCopyUrl': 'Copy H5 URL',
   'settings.general.h5AccessCopyLaunchUrl': 'Copy QR link',
+  'settings.general.h5AccessUrlCopied': 'H5 URL copied.',
+  'settings.general.h5AccessLaunchUrlCopied': 'QR link copied.',
   'settings.general.h5AccessHideToken': 'Hide token',
   'settings.general.h5AccessTokenNotAvailable': 'Regenerate to show a new token.',
   'settings.general.h5AccessPublicUrl': 'Public URL',

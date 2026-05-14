@@ -16,6 +16,7 @@ export const zh: Record<TranslationKey, string> = {
   'common.enable': '启用',
   'common.disable': '禁用',
   'common.active': '已激活',
+  'common.copyFailed': '复制失败。',
 
   // ─── Sidebar ──────────────────────────────────────
   'sidebar.newSession': '新建会话',
@@ -94,6 +95,7 @@ export const zh: Record<TranslationKey, string> = {
   'workspace.addToChat': '添加到聊天',
   'workspace.addSelectionToChat': '添加至对话',
   'workspace.copyPath': '复制路径',
+  'workspace.pathCopied': '路径已复制。',
   'workspace.localComment': '本地评论',
   'workspace.commentLine': '评论第 {line} 行',
   'workspace.commentLineTarget': '第 {line} 行',
@@ -762,6 +764,8 @@ export const zh: Record<TranslationKey, string> = {
   'settings.general.h5AccessCopy': '复制',
   'settings.general.h5AccessCopyUrl': '复制 H5 链接',
   'settings.general.h5AccessCopyLaunchUrl': '复制扫码链接',
+  'settings.general.h5AccessUrlCopied': 'H5 链接已复制。',
+  'settings.general.h5AccessLaunchUrlCopied': '扫码链接已复制。',
   'settings.general.h5AccessHideToken': '隐藏令牌',
   'settings.general.h5AccessTokenNotAvailable': '重新生成后可显示新的令牌。',
   'settings.general.h5AccessPublicUrl': '公开访问 URL',

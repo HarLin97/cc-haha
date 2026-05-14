@@ -16,6 +16,7 @@ import {
 } from '../../stores/workspacePanelStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useWorkspaceChatContextStore } from '../../stores/workspaceChatContextStore'
+import { useUIStore } from '../../stores/uiStore'
 import { copyTextToClipboard } from '../chat/clipboard'
 import { MarkdownRenderer } from '../markdown/MarkdownRenderer'
 import {
@@ -888,6 +889,7 @@ function TreeNode({
 
 export function WorkspacePanel({ sessionId }: WorkspacePanelProps) {
   const t = useTranslation()
+  const addToast = useUIStore((state) => state.addToast)
   const [filterQuery, setFilterQuery] = useState('')
   const [isViewMenuOpen, setIsViewMenuOpen] = useState(false)
   const [previewTabContextMenu, setPreviewTabContextMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
@@ -1069,8 +1071,12 @@ export function WorkspacePanel({ sessionId }: WorkspacePanelProps) {
 
   const copyWorkspacePath = async (path: string) => {
     const resolvedPath = resolveWorkspaceAttachmentPath(status?.workDir, path)
-    await copyTextToClipboard(resolvedPath)
+    const copied = await copyTextToClipboard(resolvedPath)
     setFileContextMenu(null)
+    addToast({
+      type: copied ? 'success' : 'error',
+      message: copied ? t('workspace.pathCopied') : t('common.copyFailed'),
+    })
   }
 
   const renderChangedView = () => {

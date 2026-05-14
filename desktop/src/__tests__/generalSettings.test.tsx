@@ -446,6 +446,10 @@ describe('Settings > General tab', () => {
     expect(clipboardMock.copyTextToClipboard).toHaveBeenCalledWith(
       'http://192.168.0.102:3456/?serverUrl=http%3A%2F%2F192.168.0.102%3A3456&h5Token=h5_default_generated_token',
     )
+    expect(useUIStore.getState().toasts[useUIStore.getState().toasts.length - 1]).toMatchObject({
+      type: 'success',
+      message: 'QR link copied.',
+    })
   })
 
   it('guides enabled H5 users to generate a token before the QR code exists', async () => {
@@ -517,6 +521,10 @@ describe('Settings > General tab', () => {
     })
 
     expect(clipboardMock.copyTextToClipboard).toHaveBeenCalledWith('https://phone.example/app')
+    expect(useUIStore.getState().toasts[useUIStore.getState().toasts.length - 1]).toMatchObject({
+      type: 'success',
+      message: 'H5 URL copied.',
+    })
   })
 
   it('shows the H5-specific store error when the H5 settings load failed', () => {
