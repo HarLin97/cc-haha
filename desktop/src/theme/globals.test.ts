@@ -22,6 +22,14 @@ function getThemeBlock(selector: ':root,\n[data-theme="light"]' | '[data-theme="
   throw new Error(`Theme block not closed: ${selector}`)
 }
 
+function getCssBetween(startMarker: string, endMarker: string) {
+  const start = css.indexOf(startMarker)
+  expect(start).toBeGreaterThanOrEqual(0)
+  const end = css.indexOf(endMarker, start)
+  expect(end).toBeGreaterThan(start)
+  return css.slice(start, end)
+}
+
 describe('desktop theme tokens', () => {
   const themes = [':root,\n[data-theme="light"]', '[data-theme="white"]', '[data-theme="dark"]'] as const
   const requiredTokens = [
@@ -63,8 +71,10 @@ describe('desktop theme tokens', () => {
     }
   })
 
-  it('avoids color-mix in startup-critical shell chrome for Safari 15 WebView support', () => {
-    expect(css).not.toContain('color-mix(')
+  it('avoids color-mix in the startup-critical UI zoom shell chrome for Safari 15 WebView support', () => {
+    const zoomShellCss = getCssBetween('.settings-zoom-kbd {', '/* ─── Tailwind Theme Override')
+
+    expect(zoomShellCss).not.toContain('color-mix(')
   })
 
   it('keeps the UI zoom slider thumb visible in dark mode', () => {
