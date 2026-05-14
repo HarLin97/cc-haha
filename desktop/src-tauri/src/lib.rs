@@ -224,9 +224,58 @@ const MAIN_WINDOW_LABEL: &str = "main";
 const TRAY_SHOW_ID: &str = "tray_show";
 const TRAY_QUIT_ID: &str = "tray_quit";
 const WINDOW_STATE_FILE: &str = "window-state.json";
+const TERMINAL_CONFIG_FILE: &str = "terminal-config.json";
 const MIN_WINDOW_WIDTH: u32 = 960;
 const MIN_WINDOW_HEIGHT: u32 = 640;
 const MIN_VISIBLE_PIXELS: i64 = 64;
+
+#[derive(Serialize, Deserialize)]
+struct TerminalConfig {
+    #[serde(default)]
+    bash_path: Option<String>,
+}
+
+impl TerminalConfig {
+    fn load(app: &AppHandle) -> Self {
+        let path = match app.path().app_config_dir() {
+            Ok(dir) => dir.join(TERMINAL_CONFIG_FILE),
+            Err(_) => return Self::default(),
+        };
+        fs::read_to_string(&path)
+            .ok()
+            .and_then(|data| serde_json::from_str(&data).ok())
+            .unwrap_or_default()
+    }
+
+    fn save(&self, app: &AppHandle) {
+        let path = match app.path().app_config_dir() {
+            Ok(dir) => dir.join(TERMINAL_CONFIG_FILE),
+            Err(_) => return,
+        };
+        if let Some(parent) = path.parent() {
+            if let Err(err) = fs::create_dir_all(parent) {
+                eprintln!("[desktop] failed to create terminal config directory: {err}");
+                return;
+            }
+        }
+        let data = match serde_json::to_string_pretty(self) {
+            Ok(data) => data,
+            Err(err) => {
+                eprintln!("[desktop] failed to serialize terminal config: {err}");
+                return;
+            }
+        };
+        if let Err(err) = fs::write(&path, data) {
+            eprintln!("[desktop] failed to write terminal config: {err}");
+        }
+    }
+}
+
+impl Default for TerminalConfig {
+    fn default() -> Self {
+        Self { bash_path: None }
+    }
+}
 
 #[derive(Default)]
 struct ServerState(Mutex<ServerStatus>);
@@ -612,7 +661,8 @@ fn terminal_spawn(
     cwd: Option<String>,
 ) -> Result<TerminalSpawnResult, String> {
     let cwd_path = resolve_terminal_cwd(cwd)?;
-    let shell = default_shell();
+    let terminal_config = TerminalConfig::load(&app);
+    let shell = default_shell(terminal_config.bash_path.as_deref());
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -810,6 +860,19 @@ fn terminal_kill(state: State<'_, TerminalState>, session_id: u32) -> Result<(),
             .map_err(|err| format!("kill terminal shell: {err}"))?;
     }
     Ok(())
+}
+
+#[tauri::command]
+fn get_terminal_bash_path(app: AppHandle) -> Option<String> {
+    let config = TerminalConfig::load(&app);
+    config.bash_path
+}
+
+#[tauri::command]
+fn set_terminal_bash_path(app: AppHandle, path: Option<String>) {
+    let mut config = TerminalConfig::load(&app);
+    config.bash_path = path;
+    config.save(&app);
 }
 
 #[tauri::command]
@@ -1025,7 +1088,16 @@ fn home_dir() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-fn default_shell() -> String {
+fn default_shell(custom_bash: Option<&str>) -> String {
+    // On Windows, use configured bash path if set and valid
+    #[cfg(target_os = "windows")]
+    if let Some(bash_path) = custom_bash {
+        let trimmed = bash_path.trim();
+        if !trimmed.is_empty() && PathBuf::from(trimmed).exists() {
+            return trimmed.to_string();
+        }
+    }
+
     #[cfg(target_os = "windows")]
     {
         std::env::var("COMSPEC").unwrap_or_else(|_| "powershell.exe".to_string())
@@ -1159,7 +1231,7 @@ fn start_server_sidecar(app: &AppHandle) -> Result<ServerRuntime, String> {
         .shell()
         .sidecar("claude-sidecar")
         .map_err(|err| format!("resolve sidecar: {err}"))?;
-    for (key, value) in terminal_environment(&default_shell()) {
+    for (key, value) in terminal_environment(&default_shell(None)) {
         sidecar = sidecar.env(key, value);
     }
     sidecar = sidecar
@@ -1279,7 +1351,7 @@ fn start_adapters_sidecars(app: &AppHandle) -> Result<Vec<CommandChild>, String>
             .shell()
             .sidecar("claude-sidecar")
             .map_err(|err| format!("resolve {label} adapter sidecar: {err}"))?;
-        for (key, value) in terminal_environment(&default_shell()) {
+        for (key, value) in terminal_environment(&default_shell(None)) {
             sidecar = sidecar.env(key, value);
         }
         let sidecar = sidecar.env("ADAPTER_SERVER_URL", &server_ws_url).args([
@@ -1614,6 +1686,8 @@ pub fn run() {
             terminal_write,
             terminal_resize,
             terminal_kill,
+            get_terminal_bash_path,
+            set_terminal_bash_path,
             macos_notification_permission_state,
             macos_request_notification_permission,
             macos_send_notification,
