@@ -198,6 +198,23 @@ describe('EmptySession', () => {
     expect(screen.getByTestId('empty-session-composer-panel')).toHaveClass('rounded-2xl')
   })
 
+  it('integrates repository launch controls into the desktop composer panel', async () => {
+    render(<EmptySession />)
+
+    const panel = screen.getByTestId('empty-session-composer-panel')
+    expect(panel).toHaveClass('rounded-xl', 'p-0')
+    expect(panel).not.toHaveClass('rounded-b-none')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pick project' }))
+
+    const branchButton = await screen.findByRole('button', { name: 'Select branch: main' })
+    const launchBar = branchButton.parentElement
+    expect(launchBar).toBeTruthy()
+    expect(launchBar).toHaveClass('bg-transparent')
+    expect(launchBar).not.toHaveClass('rounded-b-xl')
+    expect(panel).toContainElement(launchBar)
+  })
+
   it('creates a session with the selected project and branch when submitted', async () => {
     render(<EmptySession />)
 

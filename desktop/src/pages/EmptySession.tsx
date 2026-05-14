@@ -553,194 +553,212 @@ export function EmptySession() {
           <div
             data-testid="empty-session-composer-panel"
             className={`glass-panel relative flex flex-col gap-3 ${
-              isMobileComposer ? 'rounded-2xl p-3 shadow-[0_-12px_36px_rgba(54,35,28,0.12)]' : 'rounded-t-xl rounded-b-none p-4'
+              isMobileComposer ? 'rounded-2xl p-3 shadow-[0_-12px_36px_rgba(54,35,28,0.12)]' : 'rounded-xl p-0'
             }`}
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleDrop}
           >
-            {fileSearchOpen && (
-              <FileSearchMenu
-                ref={fileSearchRef}
-                cwd={workDir || ''}
-                filter={atFilter}
-                onNavigate={(relativePath) => {
-                  if (atCursorPos < 0) return
-                  const replacement = `@${relativePath}`
-                  const tokenEnd = atCursorPos + 1 + atFilter.length
-                  const newValue = `${input.slice(0, atCursorPos)}${replacement}${input.slice(tokenEnd)}`
-                  const newCursorPos = atCursorPos + replacement.length
-                  setInput(newValue)
-                  setAtFilter(relativePath)
-                  requestAnimationFrame(() => {
-                    textareaRef.current?.focus()
-                    textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos)
-                  })
-                }}
-                onSelect={(path, name) => {
-                  if (atCursorPos >= 0) {
-                    const attachmentName = name.split('/').filter(Boolean).pop() ?? name
+            <div className={isMobileComposer ? 'contents' : 'flex flex-col gap-3 p-4'}>
+              {fileSearchOpen && (
+                <FileSearchMenu
+                  ref={fileSearchRef}
+                  cwd={workDir || ''}
+                  filter={atFilter}
+                  onNavigate={(relativePath) => {
+                    if (atCursorPos < 0) return
+                    const replacement = `@${relativePath}`
                     const tokenEnd = atCursorPos + 1 + atFilter.length
-                    const beforeToken = input.slice(0, atCursorPos)
-                    const afterToken = beforeToken ? input.slice(tokenEnd) : input.slice(tokenEnd).replace(/^\s+/, '')
-                    const spacer = beforeToken && afterToken && !/\s$/.test(beforeToken) && !/^\s/.test(afterToken) ? ' ' : ''
-                    const newValue = `${beforeToken}${spacer}${afterToken}`
-                    const newCursorPos = atCursorPos + spacer.length
-                    setAttachments((prev) => [
-                      ...prev,
-                      {
-                        id: `att-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-                        name: attachmentName,
-                        type: 'file',
-                        path,
-                      },
-                    ])
+                    const newValue = `${input.slice(0, atCursorPos)}${replacement}${input.slice(tokenEnd)}`
+                    const newCursorPos = atCursorPos + replacement.length
                     setInput(newValue)
-                    setFileSearchOpen(false)
-                    setAtFilter('')
-                    setAtCursorPos(-1)
-                    void textareaRef.current?.focus()
+                    setAtFilter(relativePath)
                     requestAnimationFrame(() => {
+                      textareaRef.current?.focus()
                       textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos)
                     })
-                  }
-                }}
-              />
-            )}
+                  }}
+                  onSelect={(path, name) => {
+                    if (atCursorPos >= 0) {
+                      const attachmentName = name.split('/').filter(Boolean).pop() ?? name
+                      const tokenEnd = atCursorPos + 1 + atFilter.length
+                      const beforeToken = input.slice(0, atCursorPos)
+                      const afterToken = beforeToken ? input.slice(tokenEnd) : input.slice(tokenEnd).replace(/^\s+/, '')
+                      const spacer = beforeToken && afterToken && !/\s$/.test(beforeToken) && !/^\s/.test(afterToken) ? ' ' : ''
+                      const newValue = `${beforeToken}${spacer}${afterToken}`
+                      const newCursorPos = atCursorPos + spacer.length
+                      setAttachments((prev) => [
+                        ...prev,
+                        {
+                          id: `att-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                          name: attachmentName,
+                          type: 'file',
+                          path,
+                        },
+                      ])
+                      setInput(newValue)
+                      setFileSearchOpen(false)
+                      setAtFilter('')
+                      setAtCursorPos(-1)
+                      void textareaRef.current?.focus()
+                      requestAnimationFrame(() => {
+                        textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos)
+                      })
+                    }
+                  }}
+                />
+              )}
 
-            {localSlashPanel && (
-              <div ref={slashMenuRef}>
-                <LocalSlashCommandPanel
-                  command={localSlashPanel}
-                  cwd={workDir || undefined}
-                  commands={allSlashCommands}
-                  onClose={() => setLocalSlashPanel(null)}
+              {localSlashPanel && (
+                <div ref={slashMenuRef}>
+                  <LocalSlashCommandPanel
+                    command={localSlashPanel}
+                    cwd={workDir || undefined}
+                    commands={allSlashCommands}
+                    onClose={() => setLocalSlashPanel(null)}
+                  />
+                </div>
+              )}
+
+              {slashMenuOpen && filteredCommands.length > 0 && (
+                <div
+                  ref={slashMenuRef}
+                  className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] shadow-[var(--shadow-dropdown)]"
+                >
+                  <div className="max-h-[260px] overflow-y-auto py-1">
+                    {filteredCommands.map((command, index) => (
+                      <button
+                        key={command.name}
+                        ref={(el) => { slashItemRefs.current[index] = el }}
+                        onClick={() => selectSlashCommand(command.name)}
+                        onMouseEnter={() => setSlashSelectedIndex(index)}
+                        className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                          index === slashSelectedIndex ? 'bg-[var(--color-surface-hover)]' : 'hover:bg-[var(--color-surface-hover)]'
+                        }`}
+                      >
+                        <span className="shrink-0 text-sm font-semibold text-[var(--color-text-primary)]">/{command.name}</span>
+                        <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-text-tertiary)]">{command.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {attachments.length > 0 && (
+                <AttachmentGallery attachments={attachments} variant="composer" onRemove={removeAttachment} />
+              )}
+
+              <div className="flex items-start gap-3">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(event) => handleInputChange(event.target.value, event.target.selectionStart ?? event.target.value.length)}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  className={`flex-1 resize-none border-none bg-transparent leading-relaxed text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] ${
+                    isMobileComposer ? 'max-h-[132px] min-h-[72px] py-1.5 text-base' : 'py-2'
+                  }`}
+                  style={{ fontFamily: 'var(--font-body)' }}
+                  placeholder={t('empty.placeholder')}
+                  rows={2}
                 />
               </div>
-            )}
 
-            {slashMenuOpen && filteredCommands.length > 0 && (
-              <div
-                ref={slashMenuRef}
-                className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] shadow-[var(--shadow-dropdown)]"
-              >
-                <div className="max-h-[260px] overflow-y-auto py-1">
-                  {filteredCommands.map((command, index) => (
+              <div className={`border-t border-[var(--color-border-separator)] pt-3 ${
+                isMobileComposer ? 'flex flex-wrap items-center gap-2' : 'flex items-center justify-between'
+              }`}>
+                <div className="flex shrink-0 items-center gap-2">
+                  <div ref={plusMenuRef} className="relative">
                     <button
-                      key={command.name}
-                      ref={(el) => { slashItemRefs.current[index] = el }}
-                      onClick={() => selectSlashCommand(command.name)}
-                      onMouseEnter={() => setSlashSelectedIndex(index)}
-                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                        index === slashSelectedIndex ? 'bg-[var(--color-surface-hover)]' : 'hover:bg-[var(--color-surface-hover)]'
+                      onClick={() => setPlusMenuOpen((prev) => !prev)}
+                      aria-label="Open composer tools"
+                      className={`text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] ${
+                        isMobileComposer ? 'inline-flex h-11 w-11 items-center justify-center rounded-xl' : 'rounded-lg p-1.5'
                       }`}
                     >
-                      <span className="shrink-0 text-sm font-semibold text-[var(--color-text-primary)]">/{command.name}</span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-text-tertiary)]">{command.description}</span>
+                      <span className="material-symbols-outlined text-[18px]">add</span>
                     </button>
-                  ))}
+
+                    {plusMenuOpen && (
+                      <div className={`absolute bottom-full left-0 mb-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] py-1 shadow-[var(--shadow-dropdown)] ${
+                        isMobileComposer ? 'w-[min(240px,calc(100vw-32px))]' : 'w-[240px]'
+                      }`}>
+                        <button
+                          onClick={() => {
+                            fileInputRef.current?.click()
+                            setPlusMenuOpen(false)
+                          }}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
+                        >
+                          <span className="material-symbols-outlined text-[18px] text-[var(--color-text-secondary)]">attach_file</span>
+                          {t('empty.addFiles')}
+                        </button>
+                        <button
+                          onClick={insertSlashCommand}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
+                        >
+                          <span className="w-5 text-center text-[18px] font-bold text-[var(--color-text-secondary)]">/</span>
+                          {t('empty.slashCommands')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <PermissionModeSelector workDir={workDir} compact={isMobileComposer} />
                 </div>
-              </div>
-            )}
 
-            {attachments.length > 0 && (
-              <AttachmentGallery attachments={attachments} variant="composer" onRemove={removeAttachment} />
-            )}
-
-            <div className="flex items-start gap-3">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(event) => handleInputChange(event.target.value, event.target.selectionStart ?? event.target.value.length)}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                className={`flex-1 resize-none border-none bg-transparent leading-relaxed text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] ${
-                  isMobileComposer ? 'max-h-[132px] min-h-[72px] py-1.5 text-base' : 'py-2'
-                }`}
-                style={{ fontFamily: 'var(--font-body)' }}
-                placeholder={t('empty.placeholder')}
-                rows={2}
-              />
-            </div>
-
-            <div className={`border-t border-[var(--color-border-separator)] pt-3 ${
-              isMobileComposer ? 'flex flex-wrap items-center gap-2' : 'flex items-center justify-between'
-            }`}>
-              <div className="flex shrink-0 items-center gap-2">
-                <div ref={plusMenuRef} className="relative">
+                <div className={`${isMobileComposer ? 'flex min-w-0 flex-1 items-center justify-end gap-2' : 'flex items-center gap-3'}`}>
+                  <ContextUsageIndicator
+                    chatState="idle"
+                    messageCount={0}
+                    runtimeSelectionKey={draftRuntimeSelectionKey}
+                    fallbackModelLabel={draftModelLabel}
+                    draft
+                    compact={isMobileComposer}
+                  />
+                  <ModelSelector runtimeKey={DRAFT_RUNTIME_SELECTION_KEY} disabled={isSubmitting} compact={isMobileComposer} />
                   <button
-                    onClick={() => setPlusMenuOpen((prev) => !prev)}
-                    aria-label="Open composer tools"
-                    className={`text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] ${
-                      isMobileComposer ? 'inline-flex h-11 w-11 items-center justify-center rounded-xl' : 'rounded-lg p-1.5'
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    aria-label={t('common.run')}
+                    title={isMobileComposer ? t('common.run') : undefined}
+                    className={`flex shrink-0 items-center justify-center gap-1 rounded-lg bg-[image:var(--gradient-btn-primary)] text-xs font-semibold text-[var(--color-btn-primary-fg)] shadow-[var(--shadow-button-primary)] transition-all hover:brightness-105 disabled:opacity-30 ${
+                      isMobileComposer ? 'h-11 w-11 rounded-xl px-0 py-0' : 'w-[112px] px-3 py-1.5'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[18px]">add</span>
+                    {!isMobileComposer && t('common.run')}
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                   </button>
-
-                  {plusMenuOpen && (
-                    <div className={`absolute bottom-full left-0 mb-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] py-1 shadow-[var(--shadow-dropdown)] ${
-                      isMobileComposer ? 'w-[min(240px,calc(100vw-32px))]' : 'w-[240px]'
-                    }`}>
-                      <button
-                        onClick={() => {
-                          fileInputRef.current?.click()
-                          setPlusMenuOpen(false)
-                        }}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
-                      >
-                        <span className="material-symbols-outlined text-[18px] text-[var(--color-text-secondary)]">attach_file</span>
-                        {t('empty.addFiles')}
-                      </button>
-                      <button
-                        onClick={insertSlashCommand}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
-                      >
-                        <span className="w-5 text-center text-[18px] font-bold text-[var(--color-text-secondary)]">/</span>
-                        {t('empty.slashCommands')}
-                      </button>
-                    </div>
-                  )}
                 </div>
-
-                <PermissionModeSelector workDir={workDir} compact={isMobileComposer} />
-              </div>
-
-              <div className={`${isMobileComposer ? 'flex min-w-0 flex-1 items-center justify-end gap-2' : 'flex items-center gap-3'}`}>
-                <ContextUsageIndicator
-                  chatState="idle"
-                  messageCount={0}
-                  runtimeSelectionKey={draftRuntimeSelectionKey}
-                  fallbackModelLabel={draftModelLabel}
-                  draft
-                  compact={isMobileComposer}
-                />
-                <ModelSelector runtimeKey={DRAFT_RUNTIME_SELECTION_KEY} disabled={isSubmitting} compact={isMobileComposer} />
-                <button
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  aria-label={t('common.run')}
-                  title={isMobileComposer ? t('common.run') : undefined}
-                  className={`flex shrink-0 items-center justify-center gap-1 rounded-lg bg-[image:var(--gradient-btn-primary)] text-xs font-semibold text-[var(--color-btn-primary-fg)] shadow-[var(--shadow-button-primary)] transition-all hover:brightness-105 disabled:opacity-30 ${
-                    isMobileComposer ? 'h-11 w-11 rounded-xl px-0 py-0' : 'w-[112px] px-3 py-1.5'
-                  }`}
-                >
-                  {!isMobileComposer && t('common.run')}
-                  <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                </button>
               </div>
             </div>
+
+            {!isMobileComposer && (
+              <RepositoryLaunchControls
+                workDir={workDir}
+                onWorkDirChange={handleWorkDirChange}
+                branch={selectedBranch}
+                onBranchChange={setSelectedBranch}
+                useWorktree={useWorktree}
+                onUseWorktreeChange={setUseWorktree}
+                onLaunchReadyChange={setRepositoryLaunchReady}
+                disabled={isSubmitting}
+                placement="composer"
+              />
+            )}
           </div>
 
-          <RepositoryLaunchControls
-            workDir={workDir}
-            onWorkDirChange={handleWorkDirChange}
-            branch={selectedBranch}
-            onBranchChange={setSelectedBranch}
-            useWorktree={useWorktree}
-            onUseWorktreeChange={setUseWorktree}
-            onLaunchReadyChange={setRepositoryLaunchReady}
-            disabled={isSubmitting}
-          />
+          {isMobileComposer && (
+            <RepositoryLaunchControls
+              workDir={workDir}
+              onWorkDirChange={handleWorkDirChange}
+              branch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+              useWorktree={useWorktree}
+              onUseWorktreeChange={setUseWorktree}
+              onLaunchReadyChange={setRepositoryLaunchReady}
+              disabled={isSubmitting}
+            />
+          )}
         </div>
       </div>
 
