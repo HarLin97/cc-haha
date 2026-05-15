@@ -739,6 +739,61 @@ describe('SessionService', () => {
     })
   })
 
+  it('should keep /goal local command transcript entries for desktop history restore', async () => {
+    const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    await writeSessionFile('-tmp-project', sessionId, [
+      makeSnapshotEntry(),
+      {
+        parentUuid: null,
+        isSidechain: false,
+        type: 'system',
+        subtype: 'local_command',
+        content: '<command-name>/goal</command-name>\n<command-message>goal</command-message>\n<command-args>ship persisted goal</command-args>',
+        level: 'info',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        uuid: 'goal-command',
+      },
+      {
+        parentUuid: 'goal-command',
+        isSidechain: false,
+        type: 'system',
+        subtype: 'local_command',
+        content: [
+          '<local-command-stdout>',
+          'Goal created.',
+          'Goal: active',
+          'Objective: ship persisted goal',
+          'Budget: 0 / unlimited tokens',
+          'Elapsed: 0s',
+          'Continuations: 0',
+          '</local-command-stdout>',
+        ].join('\n'),
+        level: 'info',
+        timestamp: '2026-01-01T00:00:02.000Z',
+        uuid: 'goal-output',
+      },
+      makeAssistantEntry('正常助手消息', crypto.randomUUID()),
+    ])
+
+    const messages = await service.getSessionMessages(sessionId)
+
+    expect(messages).toMatchObject([
+      {
+        id: 'goal-command',
+        type: 'system',
+        content: expect.stringContaining('<command-name>/goal</command-name>'),
+      },
+      {
+        id: 'goal-output',
+        type: 'system',
+        content: expect.stringContaining('Goal created.'),
+      },
+      {
+        type: 'assistant',
+      },
+    ])
+  })
+
   it('should hide task-notification turns and their automatic responses from history', async () => {
     const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
     const firstUserId = crypto.randomUUID()

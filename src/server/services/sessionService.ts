@@ -161,6 +161,8 @@ export type TranscriptContextEstimate = {
 /** Raw entry parsed from a single JSONL line */
 type RawEntry = {
   type?: string
+  subtype?: string
+  content?: unknown
   uuid?: string
   messageId?: string
   parentUuid?: string | null
@@ -554,6 +556,49 @@ export class SessionService {
     }
 
     return false
+  }
+
+  private isGoalLocalCommandOutput(output: string): boolean {
+    const trimmed = output.trim()
+    return (
+      trimmed.startsWith('Goal created.\n') ||
+      trimmed.startsWith('Goal replaced.\n') ||
+      trimmed.startsWith('Goal: ') ||
+      trimmed === 'Goal cleared.' ||
+      trimmed === 'Goal marked complete.' ||
+      trimmed === 'No active goal.' ||
+      trimmed === 'No goal to resume.'
+    )
+  }
+
+  private isGoalLocalCommandEntry(entry: RawEntry): boolean {
+    if (
+      entry.type !== 'system' ||
+      entry.subtype !== 'local_command' ||
+      typeof entry.content !== 'string'
+    ) {
+      return false
+    }
+
+    const commandName = this.readXmlTag(entry.content, 'command-name')?.replace(/^\//, '')
+    if (commandName) return commandName === 'goal'
+
+    const output =
+      this.readXmlTag(entry.content, 'local-command-stdout') ??
+      this.readXmlTag(entry.content, 'local-command-stderr')
+    return output ? this.isGoalLocalCommandOutput(output) : false
+  }
+
+  private goalLocalCommandEntryToMessage(entry: RawEntry): MessageEntry | null {
+    if (!this.isGoalLocalCommandEntry(entry)) return null
+    return {
+      id: entry.uuid || crypto.randomUUID(),
+      type: 'system',
+      content: entry.content,
+      timestamp: entry.timestamp || new Date().toISOString(),
+      parentUuid: entry.parentUuid ?? undefined,
+      isSidechain: entry.isSidechain,
+    }
   }
 
   private extractAgentToolUseId(entry: RawEntry): string | undefined {
@@ -1790,6 +1835,12 @@ export class SessionService {
     }
 
     for (const entry of entries) {
+      const goalLocalCommandMessage = this.goalLocalCommandEntryToMessage(entry)
+      if (goalLocalCommandMessage) {
+        messages.push(goalLocalCommandMessage)
+        continue
+      }
+
       // Only process transcript entries (user / assistant / system with messages)
       if (!entry.message?.role) continue
 
