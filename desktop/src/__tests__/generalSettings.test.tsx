@@ -268,7 +268,7 @@ describe('Settings > General tab', () => {
     expect((uiZoomHeading.compareDocumentPosition(webFetchHeading) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true)
   })
 
-  it('previews UI zoom while dragging and applies it only when the user releases the slider', async () => {
+  it('applies UI zoom while dragging so the slider and app zoom stay synchronized', async () => {
     render(<Settings />)
 
     fireEvent.click(screen.getByText('General'))
@@ -287,7 +287,9 @@ describe('Settings > General tab', () => {
     })
 
     expect(screen.getAllByText('125%')).toHaveLength(2)
-    expect(useSettingsStore.getState().setUiZoom).not.toHaveBeenCalledWith(1.25)
+    expect(useSettingsStore.getState().setUiZoom).toHaveBeenCalledWith(1.25)
+    expect(useSettingsStore.getState().uiZoom).toBe(1.25)
+    expect(slider).toHaveValue('1.25')
     expect(slider).toHaveClass('settings-zoom-range')
     expect(slider.closest('.settings-zoom-control')).toHaveClass('is-dragging')
     expect(slider.closest('.settings-zoom-control')).toHaveStyle({ '--settings-zoom-range-progress': '50%' })
@@ -297,12 +299,29 @@ describe('Settings > General tab', () => {
     })
 
     expect(useSettingsStore.getState().setUiZoom).toHaveBeenCalledWith(1.25)
+    expect(slider.closest('.settings-zoom-control')).not.toHaveClass('is-dragging')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Reset UI zoom to 100%' }))
     })
 
     expect(useSettingsStore.getState().setUiZoom).toHaveBeenLastCalledWith(1)
+  })
+
+  it('updates the UI zoom slider when shortcut zoom changes the shared setting while Settings is open', async () => {
+    render(<Settings />)
+
+    fireEvent.click(screen.getByText('General'))
+
+    const slider = screen.getByLabelText('UI Zoom')
+
+    await act(async () => {
+      useSettingsStore.setState({ uiZoom: 1.1 })
+    })
+
+    expect(slider).toHaveValue('1.1')
+    expect(screen.getAllByText('110%')).toHaveLength(2)
+    expect(slider.closest('.settings-zoom-control')).toHaveStyle({ '--settings-zoom-range-progress': '40%' })
   })
 
   it('opens the Token usage tab from Settings navigation above Diagnostics', () => {

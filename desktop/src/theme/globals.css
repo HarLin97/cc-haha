@@ -199,6 +199,7 @@
   cursor: pointer;
   background: transparent;
   accent-color: var(--color-brand);
+  touch-action: none;
 }
 
 .settings-zoom-range:focus {

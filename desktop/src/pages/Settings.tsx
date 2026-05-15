@@ -1396,7 +1396,7 @@ function GeneralSettings() {
   const [isUiZoomDragging, setIsUiZoomDragging] = useState(false)
   const webSearchDirty = JSON.stringify(webSearchDraft) !== JSON.stringify(webSearch)
   const uiZoomPercent = Math.round(uiZoomDraft * 100)
-  const uiZoomRangeProgress = `${((uiZoomDraft - UI_ZOOM_MIN) / (UI_ZOOM_MAX - UI_ZOOM_MIN)) * 100}%`
+  const uiZoomRangeProgress = `${Math.round(((uiZoomDraft - UI_ZOOM_MIN) / (UI_ZOOM_MAX - UI_ZOOM_MIN)) * 1000) / 10}%`
 
   useEffect(() => {
     setWebSearchDraft(webSearch)
@@ -1523,9 +1523,11 @@ function GeneralSettings() {
     }
   }
 
-  const commitUiZoom = (value: number) => {
+  const commitUiZoom = (value: number, options: { keepDragging?: boolean } = {}) => {
     const nextZoom = Number.isFinite(value) ? value : UI_ZOOM_DEFAULT
-    setIsUiZoomDragging(false)
+    if (!options.keepDragging) {
+      setIsUiZoomDragging(false)
+    }
     setUiZoomDraft(nextZoom)
     setUiZoom(nextZoom)
   }
@@ -1599,21 +1601,17 @@ function GeneralSettings() {
             max={UI_ZOOM_MAX}
             step={UI_ZOOM_STEP}
             value={uiZoomDraft}
-            onPointerDown={(e) => {
+            onPointerDown={() => {
               setIsUiZoomDragging(true)
-              e.currentTarget.setPointerCapture?.(e.pointerId)
             }}
-            onPointerUp={(e) => commitUiZoom(e.currentTarget.valueAsNumber)}
-            onPointerCancel={(e) => commitUiZoom(e.currentTarget.valueAsNumber)}
-            onChange={(e) => setUiZoomDraft(e.currentTarget.valueAsNumber)}
-            onKeyUp={(e) => {
-              if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) {
-                commitUiZoom(e.currentTarget.valueAsNumber)
-              }
-            }}
+            onPointerUp={() => setIsUiZoomDragging(false)}
+            onPointerCancel={() => setIsUiZoomDragging(false)}
+            onChange={(e) => commitUiZoom(e.currentTarget.valueAsNumber, { keepDragging: isUiZoomDragging })}
             onBlur={(e) => {
               if (uiZoomDraft !== uiZoom) {
                 commitUiZoom(e.currentTarget.valueAsNumber)
+              } else {
+                setIsUiZoomDragging(false)
               }
             }}
             className="settings-zoom-range w-full"
