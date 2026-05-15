@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import type { AppState } from '../../state/AppStateStore.js'
 import { isEnabledPluginSettingValue } from '../../utils/plugins/dependencyResolver.js'
 import { clearInstalledPluginsCache } from '../../utils/plugins/installedPluginsManager.js'
 import { clearPluginCache, loadAllPluginsCacheOnly } from '../../utils/plugins/pluginLoader.js'
+import { refreshActivePlugins } from '../../utils/plugins/refresh.js'
 import { resetSettingsCache } from '../../utils/settings/settingsCache.js'
 import { handlePluginsApi } from '../api/plugins.js'
 import { conversationService } from '../services/conversationService.js'
@@ -240,5 +242,117 @@ describe('Plugins API', () => {
         argumentHint: '<prompt>',
       },
     ])
+  })
+
+  it('refreshActivePlugins rereads settings after an external enable toggle', async () => {
+    const marketplaceRoot = path.join(tmpDir, 'marketplace-root')
+    const pluginRoot = path.join(marketplaceRoot, 'plugins', 'draw')
+    const pluginsDir = path.join(tmpDir, 'plugins')
+    const marketplaceFile = path.join(
+      marketplaceRoot,
+      '.claude-plugin',
+      'marketplace.json',
+    )
+
+    await fs.mkdir(path.join(pluginRoot, '.claude-plugin'), { recursive: true })
+    await fs.mkdir(path.join(pluginRoot, 'commands'), { recursive: true })
+    await fs.mkdir(path.dirname(marketplaceFile), { recursive: true })
+    await fs.mkdir(pluginsDir, { recursive: true })
+
+    await fs.writeFile(
+      path.join(pluginRoot, '.claude-plugin', 'plugin.json'),
+      JSON.stringify({
+        name: 'draw',
+        version: '1.0.0',
+        description: 'Drawing plugin',
+      }),
+      'utf-8',
+    )
+    await fs.writeFile(
+      path.join(pluginRoot, 'commands', 'render.md'),
+      '---\ndescription: Render a drawing.\n---\nRender this drawing.',
+      'utf-8',
+    )
+    await fs.writeFile(
+      marketplaceFile,
+      JSON.stringify({
+        name: 'test-market',
+        owner: { name: 'Test' },
+        plugins: [
+          {
+            name: 'draw',
+            source: './plugins/draw',
+            version: '1.0.0',
+          },
+        ],
+      }),
+      'utf-8',
+    )
+    await fs.writeFile(
+      path.join(pluginsDir, 'known_marketplaces.json'),
+      JSON.stringify({
+        'test-market': {
+          source: { source: 'directory', path: marketplaceRoot },
+          installLocation: marketplaceRoot,
+          lastUpdated: new Date(0).toISOString(),
+        },
+      }),
+      'utf-8',
+    )
+
+    const settingsPath = path.join(tmpDir, 'settings.json')
+    await fs.writeFile(
+      settingsPath,
+      JSON.stringify({
+        enabledPlugins: {
+          'draw@test-market': false,
+        },
+      }),
+      'utf-8',
+    )
+
+    const disabledResult = await loadAllPluginsCacheOnly()
+    expect(disabledResult.enabled).toEqual([])
+    expect(disabledResult.disabled).toContainEqual(
+      expect.objectContaining({ source: 'draw@test-market', enabled: false }),
+    )
+
+    await fs.writeFile(
+      settingsPath,
+      JSON.stringify({
+        enabledPlugins: {
+          'draw@test-market': true,
+        },
+      }),
+      'utf-8',
+    )
+
+    let appState = {
+      plugins: {
+        enabled: [],
+        disabled: disabledResult.disabled,
+        commands: [],
+        errors: [],
+        needsRefresh: true,
+      },
+      mcp: { pluginReconnectKey: 0 },
+      agentDefinitions: { allAgents: [], errors: [] },
+    } as unknown as AppState
+
+    const result = await refreshActivePlugins(updater => {
+      appState = updater(appState)
+    })
+
+    expect(result.enabled_count).toBe(1)
+    expect(result.command_count).toBe(1)
+    expect(result.pluginCommands).toContainEqual(
+      expect.objectContaining({
+        name: 'draw:render',
+        description: 'Render a drawing.',
+      }),
+    )
+    expect(appState.plugins.commands).toContainEqual(
+      expect.objectContaining({ name: 'draw:render' }),
+    )
   })
 })
