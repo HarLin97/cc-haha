@@ -68,8 +68,8 @@ describe('composerUtils', () => {
       expect.arrayContaining([
         {
           name: 'goal',
-          description: 'Create or manage an autonomous completion goal',
-          argumentHint: '<objective>|status|pause|resume|clear|complete',
+          description: 'Set a completion goal',
+          argumentHint: '[<condition> | clear]',
         },
       ]),
     )

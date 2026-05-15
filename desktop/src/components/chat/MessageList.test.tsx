@@ -161,7 +161,7 @@ describe('MessageList nested tool calls', () => {
 
     render(<MessageList />)
 
-    expect(screen.getByText('Goal created')).toBeTruthy()
+    expect(screen.getByText('Goal set')).toBeTruthy()
     expect(screen.getByText('Objective: ship the smoke test')).toBeTruthy()
     expect(screen.getByText('Status: active')).toBeTruthy()
     expect(screen.getByText('Budget: 0 / 2,000 tokens')).toBeTruthy()
@@ -186,7 +186,7 @@ describe('MessageList nested tool calls', () => {
 
     render(<MessageList />)
 
-    expect(screen.getByText('Goal replaced')).toBeTruthy()
+    expect(screen.getByText('Goal set')).toBeTruthy()
     expect(screen.getByText('Objective: ship the replacement target')).toBeTruthy()
     expect(screen.getByText('Budget: 0 / unlimited tokens')).toBeTruthy()
   })

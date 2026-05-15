@@ -40,14 +40,7 @@ describe('WebSocket memory events', () => {
 })
 
 describe('WebSocket goal command events', () => {
-  const goalStatusOutput = [
-    'Goal created.',
-    'Goal: active',
-    'Objective: ship the smoke test',
-    'Budget: 0 / 2,000 tokens',
-    'Elapsed: 0s',
-    'Continuations: 0',
-  ].join('\n')
+  const goalStatusOutput = 'Goal set: ship the smoke test'
 
   const runGoalCommand = (sessionId: string, args: string, output: string, type: 'system' | 'user' = 'system') => {
     expect(translateCliMessage({
@@ -84,7 +77,7 @@ describe('WebSocket goal command events', () => {
     expect(translateCliMessage({
       type: 'system',
       subtype: 'local_command',
-      content: '<command-name>/goal</command-name>\n<command-args>--tokens 2k ship the smoke test</command-args>',
+      content: '<command-name>/goal</command-name>\n<command-args>ship the smoke test</command-args>',
     }, sessionId)).toEqual([])
 
     expect(translateCliMessage({
@@ -104,42 +97,13 @@ describe('WebSocket goal command events', () => {
           action: 'created',
           status: 'active',
           objective: 'ship the smoke test',
-          budget: '0 / 2,000 tokens',
-          elapsed: '0s',
-          continuations: '0',
           message: goalStatusOutput,
         },
       },
     ])
   })
 
-  it('classifies /goal lifecycle subcommand output for the desktop client', () => {
-    const statusOutput = goalStatusOutput.split('\n').slice(1).join('\n')
-
-    expect(runGoalCommand(`goal-status-${crypto.randomUUID()}`, 'status', statusOutput)).toEqual([
-      expect.objectContaining({
-        type: 'system_notification',
-        subtype: 'goal_event',
-        data: expect.objectContaining({ action: 'status', status: 'active' }),
-      }),
-    ])
-
-    expect(runGoalCommand(`goal-pause-${crypto.randomUUID()}`, 'pause', 'Goal: paused\nObjective: ship docs')).toEqual([
-      expect.objectContaining({
-        type: 'system_notification',
-        subtype: 'goal_event',
-        data: expect.objectContaining({ action: 'paused', status: 'paused' }),
-      }),
-    ])
-
-    expect(runGoalCommand(`goal-resume-${crypto.randomUUID()}`, 'resume', statusOutput)).toEqual([
-      expect.objectContaining({
-        type: 'system_notification',
-        subtype: 'goal_event',
-        data: expect.objectContaining({ action: 'resumed', status: 'active' }),
-      }),
-    ])
-
+  it('classifies /goal clear and completion output for the desktop client', () => {
     expect(runGoalCommand(`goal-complete-${crypto.randomUUID()}`, 'complete', 'Goal marked complete.')).toEqual([
       expect.objectContaining({
         type: 'system_notification',
@@ -148,39 +112,25 @@ describe('WebSocket goal command events', () => {
       }),
     ])
 
-    expect(runGoalCommand(`goal-clear-${crypto.randomUUID()}`, 'clear', 'Goal cleared.')).toEqual([
+    expect(runGoalCommand(`goal-clear-${crypto.randomUUID()}`, 'clear', 'Goal cleared: ship docs')).toEqual([
       expect.objectContaining({
         type: 'system_notification',
         subtype: 'goal_event',
-        data: { action: 'cleared', message: 'Goal cleared.' },
+        data: { action: 'cleared', message: 'Goal cleared: ship docs' },
       }),
     ])
   })
 
-  it('marks replacement output distinctly for the desktop client', () => {
-    const output = [
-      'Goal replaced.',
-      'Goal: active',
-      'Objective: ship the replacement target',
-      'Budget: 0 / unlimited tokens',
-      'Elapsed: 0s',
-      'Continuations: 0',
-    ].join('\n')
+  it('allows direct /goal local command output through the pre-turn mute gate', () => {
+    const shouldForward = createCurrentTurnLocalCommandForwarder(
+      parseSlashCommand('/goal ship the smoke test'),
+    )
 
-    expect(runGoalCommand(`goal-replaced-${crypto.randomUUID()}`, 'ship the replacement target', output)).toEqual([
-      expect.objectContaining({
-        type: 'system_notification',
-        subtype: 'goal_event',
-        message: output,
-        data: expect.objectContaining({
-          action: 'replaced',
-          status: 'active',
-          objective: 'ship the replacement target',
-          budget: '0 / unlimited tokens',
-          continuations: '0',
-        }),
-      }),
-    ])
+    expect(shouldForward({
+      type: 'system',
+      subtype: 'local_command_output',
+      content: '<local-command-stdout>Goal set: ship the smoke test</local-command-stdout>',
+    })).toBe(true)
   })
 
   it('keeps negative /goal command output visible as a goal message event', () => {
@@ -235,7 +185,7 @@ describe('WebSocket goal command events', () => {
     expect(shouldForward({
       type: 'system',
       subtype: 'local_command',
-      content: '<local-command-stdout>Goal created.\nGoal: active\nObjective: ship the smoke test</local-command-stdout>',
+      content: '<local-command-stdout>Goal set: ship the smoke test</local-command-stdout>',
     })).toBe(true)
     expect(shouldForward({
       type: 'system',

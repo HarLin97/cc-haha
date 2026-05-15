@@ -12,16 +12,17 @@ import {
 } from './goalState.js'
 
 describe('goalState', () => {
-  test('parses token budget before the goal objective', () => {
+  test('parses set and clear goal commands', () => {
     const parsed = parseGoalCommand(
-      '--tokens 250K migrate auth to the new API until tests pass',
+      'migrate auth to the new API until tests pass',
     )
 
     expect(parsed).toEqual({
       type: 'set',
       objective: 'migrate auth to the new API until tests pass',
-      tokenBudget: 250_000,
     })
+    expect(parseGoalCommand('clear')).toEqual({ type: 'clear' })
+    expect(() => parseGoalCommand('')).toThrow('Usage: /goal <condition> | clear')
   })
 
   test('stores and formats the current thread goal', () => {

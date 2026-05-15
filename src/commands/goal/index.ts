@@ -4,8 +4,8 @@ const goal = {
   type: 'local-jsx',
   supportsNonInteractive: true,
   name: 'goal',
-  description: 'Set or manage a completion goal that keeps the session working until it is met',
-  argumentHint: '[status|clear|pause|resume|--tokens <budget> <objective>|<objective>]',
+  description: 'Set a completion goal that keeps the session working until it is met',
+  argumentHint: '[<condition> | clear]',
   load: () => import('./goal.js'),
 } satisfies Command
 

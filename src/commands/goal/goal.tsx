@@ -5,12 +5,10 @@ import type { LocalJSXCommandOnDone } from '../../types/command.js'
 import {
   buildGoalStartPrompt,
   clearThreadGoal,
-  formatGoalStatus,
   getThreadGoal,
   hydrateThreadGoalFromMessages,
   parseGoalCommand,
   setThreadGoal,
-  updateThreadGoalStatus,
 } from '../../goals/goalState.js'
 
 export async function call(
@@ -24,49 +22,20 @@ export async function call(
 
   try {
     const parsed = parseGoalCommand(args)
-    if (parsed.type === 'status') {
-      onDone(formatGoalStatus(getCurrentGoal()), { display: 'system' })
-      return null
-    }
     if (parsed.type === 'clear') {
-      getCurrentGoal()
+      const existing = getCurrentGoal()
       const cleared = clearThreadGoal(threadId)
-      onDone(cleared ? 'Goal cleared.' : 'No active goal.', { display: 'system' })
-      return null
-    }
-    if (parsed.type === 'pause') {
-      getCurrentGoal()
-      const goal = updateThreadGoalStatus(threadId, 'paused')
-      onDone(goal ? formatGoalStatus(goal) : 'No active goal.', {
-        display: 'system',
-      })
-      return null
-    }
-    if (parsed.type === 'resume') {
-      getCurrentGoal()
-      const goal = updateThreadGoalStatus(threadId, 'active')
-      onDone(goal ? formatGoalStatus(goal) : 'No goal to resume.', {
-        display: 'system',
-        shouldQuery: Boolean(goal),
-        metaMessages: goal ? [buildGoalStartPrompt(goal)] : [],
-      })
-      return null
-    }
-    if (parsed.type === 'complete') {
-      getCurrentGoal()
-      const goal = updateThreadGoalStatus(threadId, 'complete')
-      onDone(goal ? 'Goal marked complete.' : 'No active goal.', {
-        display: 'system',
-      })
+      onDone(
+        cleared && existing ? `Goal cleared: ${existing.objective}` : 'No active goal.',
+        { display: 'system' },
+      )
       return null
     }
 
-    const replaced = Boolean(getCurrentGoal())
     const goal = setThreadGoal(threadId, {
       objective: parsed.objective,
-      tokenBudget: parsed.tokenBudget,
     })
-    onDone(`${replaced ? 'Goal replaced.' : 'Goal created.'}\n${formatGoalStatus(goal)}`, {
+    onDone(`Goal set: ${goal.objective}`, {
       display: 'system',
       shouldQuery: true,
       metaMessages: [buildGoalStartPrompt(goal)],
