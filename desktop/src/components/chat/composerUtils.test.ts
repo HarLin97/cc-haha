@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  filterSlashCommands,
   findSlashToken,
   insertSlashTrigger,
   mergeSlashCommands,
@@ -73,6 +74,22 @@ describe('composerUtils', () => {
         },
       ]),
     )
+  })
+
+  it('ranks slash command name matches before broad description matches', () => {
+    expect(
+      filterSlashCommands([
+        { name: 'lark-calendar', description: 'Includes shortcuts and suggestion helpers' },
+        { name: 'agent-team-orchestrator', description: 'Uses Subagent orchestration' },
+        { name: 'superpowers:brainstorming', description: 'Creative work planning' },
+        { name: 'superpowers:systematic-debugging', description: 'Debug unexpected behavior' },
+      ], 'su').map((command) => command.name),
+    ).toEqual([
+      'superpowers:brainstorming',
+      'superpowers:systematic-debugging',
+      'lark-calendar',
+      'agent-team-orchestrator',
+    ])
   })
 
   it('resolves hidden settings aliases without displaying duplicate fallback rows', () => {

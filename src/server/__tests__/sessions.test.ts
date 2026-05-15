@@ -15,6 +15,9 @@ import {
 import { conversationService } from '../services/conversationService.js'
 import { clearCommandsCache } from '../../commands.js'
 import { sanitizePath } from '../../utils/sessionStoragePortable.js'
+import { clearInstalledPluginsCache } from '../../utils/plugins/installedPluginsManager.js'
+import { clearPluginCache } from '../../utils/plugins/pluginLoader.js'
+import { resetSettingsCache } from '../../utils/settings/settingsCache.js'
 
 // ============================================================================
 // Test helpers
@@ -397,10 +400,16 @@ describe('SessionService', () => {
   beforeEach(async () => {
     await setupTmpConfigDir()
     service = new SessionService()
+    clearInstalledPluginsCache()
+    clearPluginCache('sessions-api-test-setup')
+    resetSettingsCache()
   })
 
   afterEach(async () => {
     clearCommandsCache()
+    clearInstalledPluginsCache()
+    clearPluginCache('session-service-test-teardown')
+    resetSettingsCache()
     await cleanupTmpDir()
   })
 
@@ -1481,6 +1490,9 @@ describe('Sessions API', () => {
       server.stop(true)
       server = null
     }
+    clearInstalledPluginsCache()
+    clearPluginCache('sessions-api-test-teardown')
+    resetSettingsCache()
     await cleanupTmpDir()
   })
 
@@ -2023,6 +2035,95 @@ describe('Sessions API', () => {
     )
     expect(body.commands).toContainEqual(
       expect.objectContaining({ name: 'project-skill', description: 'Project skill description' }),
+    )
+  })
+
+  it('GET /api/sessions/:id/slash-commands should include enabled plugin skills before CLI init', async () => {
+    const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-ffffffffffff'
+    const workDir = path.join(tmpDir, 'workspace', 'app')
+    const marketplaceRoot = path.join(tmpDir, 'marketplace-root')
+    const pluginRoot = path.join(marketplaceRoot, 'plugins', 'superpowers')
+    const pluginsDir = path.join(tmpDir, 'plugins')
+    const marketplaceFile = path.join(
+      marketplaceRoot,
+      '.claude-plugin',
+      'marketplace.json',
+    )
+
+    await fs.mkdir(path.join(pluginRoot, '.claude-plugin'), { recursive: true })
+    await fs.mkdir(path.dirname(marketplaceFile), { recursive: true })
+    await fs.mkdir(pluginsDir, { recursive: true })
+    await fs.mkdir(workDir, { recursive: true })
+    await writeSkill(
+      path.join(pluginRoot, 'skills'),
+      'brainstorming',
+      'Superpowers brainstorming skill',
+    )
+    await fs.writeFile(
+      path.join(pluginRoot, '.claude-plugin', 'plugin.json'),
+      JSON.stringify({
+        name: 'superpowers',
+        version: '5.0.7',
+        description: 'Core skills library',
+      }),
+      'utf-8',
+    )
+    await fs.writeFile(
+      marketplaceFile,
+      JSON.stringify({
+        name: 'claude-plugins-official',
+        owner: { name: 'Test' },
+        plugins: [
+          {
+            name: 'superpowers',
+            source: './plugins/superpowers',
+            version: '5.0.7',
+          },
+        ],
+      }),
+      'utf-8',
+    )
+    await fs.writeFile(
+      path.join(pluginsDir, 'known_marketplaces.json'),
+      JSON.stringify({
+        'claude-plugins-official': {
+          source: { source: 'directory', path: marketplaceRoot },
+          installLocation: marketplaceRoot,
+          lastUpdated: new Date(0).toISOString(),
+        },
+      }),
+      'utf-8',
+    )
+    await fs.writeFile(
+      path.join(tmpDir, 'settings.json'),
+      JSON.stringify({
+        enabledPlugins: {
+          'superpowers@claude-plugins-official': true,
+        },
+      }),
+      'utf-8',
+    )
+
+    resetSettingsCache()
+    clearPluginCache('sessions-api-plugin-skills')
+    clearCommandsCache()
+    await writeSessionFile('-tmp-api-test', sessionId, [
+      makeSnapshotEntry(),
+      makeSessionMetaEntry(workDir),
+    ])
+
+    const res = await fetch(`${baseUrl}/api/sessions/${sessionId}/slash-commands`)
+    expect(res.status).toBe(200)
+
+    const body = (await res.json()) as {
+      commands: Array<{ name: string; description: string }>
+    }
+
+    expect(body.commands).toContainEqual(
+      expect.objectContaining({
+        name: 'superpowers:brainstorming',
+        description: 'Superpowers brainstorming skill',
+      }),
     )
   })
 

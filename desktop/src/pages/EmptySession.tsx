@@ -25,6 +25,7 @@ import {
 } from '../lib/composerAttachments'
 import {
   FALLBACK_SLASH_COMMANDS,
+  filterSlashCommands,
   findSlashToken,
   insertSlashTrigger,
   mergeSlashCommands,
@@ -215,13 +216,7 @@ export function EmptySession() {
   }
 
   const filteredCommands = useMemo(() => {
-    const source = allSlashCommands
-    if (!slashFilter) return source
-    const lower = slashFilter.toLowerCase()
-    return source.filter((command) => (
-      command.name.toLowerCase().includes(lower) ||
-      command.description.toLowerCase().includes(lower)
-    ))
+    return filterSlashCommands(allSlashCommands, slashFilter)
   }, [allSlashCommands, slashFilter])
 
   const exactSlashCommand = useMemo(() => {

@@ -24,6 +24,7 @@ import { LocalSlashCommandPanel, type LocalSlashCommandName } from './LocalSlash
 import { ContextUsageIndicator } from './ContextUsageIndicator'
 import {
   FALLBACK_SLASH_COMMANDS,
+  filterSlashCommands,
   findSlashTrigger,
   mergeSlashCommands,
   replaceSlashToken,
@@ -343,14 +344,7 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
   )
 
   const filteredCommands = useMemo(() => {
-    const source = allSlashCommands
-    if (!slashFilter) return source
-    const lower = slashFilter.toLowerCase()
-    return source.filter((command) => (
-      command.name.toLowerCase().includes(lower) ||
-      command.description.toLowerCase().includes(lower) ||
-      command.argumentHint?.toLowerCase().includes(lower)
-    ))
+    return filterSlashCommands(allSlashCommands, slashFilter)
   }, [allSlashCommands, slashFilter])
 
   const exactSlashCommand = useMemo(() => {

@@ -704,4 +704,45 @@ describe('ChatInput file mentions', () => {
     expect(fileSearchMenu).not.toHaveClass('min-w-[480px]')
     expect(fileSearchMenu).not.toHaveTextContent('Navigate')
   })
+
+  it('prioritizes active-session slash commands by command name when filtering', async () => {
+    useChatStore.setState({
+      sessions: {
+        [sessionId]: {
+          ...useChatStore.getState().sessions[sessionId]!,
+          slashCommands: [
+            {
+              name: 'agent-team-orchestrator',
+              description: 'Agent Teams can use Subagent orchestration.',
+            },
+            {
+              name: 'lark-calendar',
+              description: 'Includes suggestion helpers.',
+            },
+            {
+              name: 'superpowers:brainstorming',
+              description: 'Creative work planning.',
+            },
+          ],
+        },
+      },
+    })
+
+    render(<ChatInput />)
+
+    await waitFor(() => {
+      expect(mocks.getGitInfo).toHaveBeenCalledWith(sessionId)
+    })
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: '/su', selectionStart: 3 },
+    })
+
+    await waitFor(() => {
+      const commandButtons = screen
+        .getAllByRole('button')
+        .filter((button) => button.textContent?.startsWith('/'))
+      expect(commandButtons[0]).toHaveTextContent('/superpowers:brainstorming')
+    })
+  })
 })

@@ -246,6 +246,45 @@ describe('EmptySession', () => {
     })
   })
 
+  it('prioritizes enabled plugin slash commands by command name when filtering', async () => {
+    mocks.listSkills.mockResolvedValueOnce({
+      skills: [
+        {
+          name: 'agent-team-orchestrator',
+          description: 'Agent Teams can use Subagent orchestration.',
+          userInvocable: true,
+        },
+        {
+          name: 'lark-calendar',
+          description: 'Includes suggestion helpers.',
+          userInvocable: true,
+        },
+        {
+          name: 'superpowers:brainstorming',
+          description: 'Creative work planning.',
+          userInvocable: true,
+        },
+      ],
+    })
+
+    render(<EmptySession />)
+
+    await waitFor(() => {
+      expect(mocks.listSkills).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: '/su', selectionStart: 3 },
+    })
+
+    await waitFor(() => {
+      const commandButtons = screen
+        .getAllByRole('button')
+        .filter((button) => button.textContent?.startsWith('/'))
+      expect(commandButtons[0]).toHaveTextContent('/superpowers:brainstorming')
+    })
+  })
+
   it('integrates repository launch controls into the desktop composer panel', async () => {
     render(<EmptySession />)
 

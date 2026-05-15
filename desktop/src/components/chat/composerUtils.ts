@@ -108,6 +108,39 @@ export function mergeSlashCommands(
   return [...merged.values()]
 }
 
+function getSlashCommandMatchRank(command: SlashCommandOption, filter: string): number {
+  const name = command.name.toLowerCase()
+  const description = command.description.toLowerCase()
+  const argumentHint = command.argumentHint?.toLowerCase() ?? ''
+  const nameParts = name.split(/[:/._-]+/).filter(Boolean)
+
+  if (name === filter) return 0
+  if (name.startsWith(filter)) return 1
+  if (nameParts.some((part) => part.startsWith(filter))) return 2
+  if (name.includes(filter)) return 3
+  if (description.includes(filter)) return 4
+  if (argumentHint.includes(filter)) return 5
+  return Number.POSITIVE_INFINITY
+}
+
+export function filterSlashCommands(
+  commands: ReadonlyArray<SlashCommandOption>,
+  filter: string,
+): SlashCommandOption[] {
+  const normalized = filter.trim().toLowerCase()
+  if (!normalized) return [...commands]
+
+  return commands
+    .map((command, index) => ({
+      command,
+      index,
+      rank: getSlashCommandMatchRank(command, normalized),
+    }))
+    .filter((item) => Number.isFinite(item.rank))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.command)
+}
+
 export type SlashTrigger = {
   slashPos: number
   filter: string
