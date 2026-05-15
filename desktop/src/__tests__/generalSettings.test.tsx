@@ -240,6 +240,12 @@ describe('Settings > General tab', () => {
     render(<Settings />)
 
     fireEvent.click(screen.getByText('General'))
+    const pureWhite = screen.getByRole('button', { name: 'Pure White' })
+    const warmClassic = screen.getByRole('button', { name: 'Warm Classic' })
+    const dark = screen.getByRole('button', { name: 'Dark' })
+
+    expect((pureWhite.compareDocumentPosition(warmClassic) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true)
+    expect((warmClassic.compareDocumentPosition(dark) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Pure White' }))
 
     expect(useSettingsStore.getState().setTheme).toHaveBeenCalledWith('white')
