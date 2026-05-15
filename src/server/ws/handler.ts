@@ -32,7 +32,13 @@ const providerService = new ProviderService()
 /**
  * Cache slash commands from CLI init messages, keyed by sessionId.
  */
-const sessionSlashCommands = new Map<string, Array<{ name: string; description: string }>>()
+export type SessionSlashCommand = {
+  name: string
+  description: string
+  argumentHint?: string
+}
+
+const sessionSlashCommands = new Map<string, SessionSlashCommand[]>()
 
 /**
  * Timers for delayed session cleanup after client disconnect.
@@ -86,7 +92,7 @@ async function sendRepositoryStartupStatus(
   }
 }
 
-export function getSlashCommands(sessionId: string): Array<{ name: string; description: string }> {
+export function getSlashCommands(sessionId: string): SessionSlashCommand[] {
   return sessionSlashCommands.get(sessionId) || []
 }
 
@@ -785,10 +791,7 @@ function cacheSessionInitMetadata(sessionId: string, cliMsg: any) {
     })()
   }
   if (cliMsg.slash_commands && Array.isArray(cliMsg.slash_commands)) {
-    sessionSlashCommands.set(sessionId, cliMsg.slash_commands.map((cmd: any) => ({
-      name: typeof cmd === 'string' ? cmd : (cmd.name || cmd.command || ''),
-      description: typeof cmd === 'string' ? '' : (cmd.description || ''),
-    })))
+    updateSessionSlashCommands(sessionId, cliMsg.slash_commands, { notifyClient: false })
   }
 }
 
@@ -1573,6 +1576,55 @@ export function sendToSession(sessionId: string, message: ServerMessage): boolea
   if (!ws) return false
   ws.send(JSON.stringify(message))
   return true
+}
+
+export function updateSessionSlashCommands(
+  sessionId: string,
+  commands: unknown[],
+  options: { notifyClient?: boolean } = {},
+): SessionSlashCommand[] {
+  const normalized = commands
+    .map(normalizeSessionSlashCommand)
+    .filter((command): command is SessionSlashCommand => command !== null)
+
+  sessionSlashCommands.set(sessionId, normalized)
+
+  if (options.notifyClient !== false) {
+    sendToSession(sessionId, {
+      type: 'system_notification',
+      subtype: 'slash_commands',
+      data: normalized,
+    })
+  }
+
+  return normalized
+}
+
+function normalizeSessionSlashCommand(command: unknown): SessionSlashCommand | null {
+  if (typeof command === 'string') {
+    return command.trim() ? { name: command, description: '' } : null
+  }
+  if (!command || typeof command !== 'object') return null
+
+  const record = command as {
+    name?: unknown
+    command?: unknown
+    description?: unknown
+    argumentHint?: unknown
+  }
+  const name =
+    typeof record.name === 'string'
+      ? record.name
+      : typeof record.command === 'string'
+        ? record.command
+        : ''
+  if (!name.trim()) return null
+
+  return {
+    name,
+    description: typeof record.description === 'string' ? record.description : '',
+    ...(typeof record.argumentHint === 'string' ? { argumentHint: record.argumentHint } : {}),
+  }
 }
 
 export function closeSessionConnection(sessionId: string, reason = 'session closed'): boolean {

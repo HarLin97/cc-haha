@@ -4,6 +4,7 @@ import { skillsApi } from '../api/skills'
 import { useTranslation } from '../i18n'
 import { useSessionStore } from '../stores/sessionStore'
 import { useChatStore } from '../stores/chatStore'
+import { usePluginStore } from '../stores/pluginStore'
 import { useSessionRuntimeStore, DRAFT_RUNTIME_SELECTION_KEY } from '../stores/sessionRuntimeStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useUIStore } from '../stores/uiStore'
@@ -103,6 +104,7 @@ export function EmptySession() {
   const setActiveView = useUIStore((state) => state.setActiveView)
   const addToast = useUIStore((state) => state.addToast)
   const currentModel = useSettingsStore((state) => state.currentModel)
+  const lastPluginReloadSummary = usePluginStore((state) => state.lastReloadSummary)
   const draftRuntimeSelection = useSessionRuntimeStore((state) => state.selections[DRAFT_RUNTIME_SELECTION_KEY])
   const draftRuntimeSelectionKey = draftRuntimeSelection
     ? `${draftRuntimeSelection.providerId ?? 'official'}:${draftRuntimeSelection.modelId}`
@@ -198,7 +200,7 @@ export function EmptySession() {
     return () => {
       cancelled = true
     }
-  }, [workDir])
+  }, [workDir, lastPluginReloadSummary])
 
   const allSlashCommands = useMemo(
     () => mergeSlashCommands(slashCommands, FALLBACK_SLASH_COMMANDS),
