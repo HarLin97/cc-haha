@@ -225,9 +225,91 @@ const TRAY_SHOW_ID: &str = "tray_show";
 const TRAY_QUIT_ID: &str = "tray_quit";
 const WINDOW_STATE_FILE: &str = "window-state.json";
 const TERMINAL_CONFIG_FILE: &str = "terminal-config.json";
+const APP_MODE_FILE: &str = "app-mode.json";
 const MIN_WINDOW_WIDTH: u32 = 960;
 const MIN_WINDOW_HEIGHT: u32 = 640;
 const MIN_VISIBLE_PIXELS: i64 = 64;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum AppMode {
+    Default,
+    Portable,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AppModeConfig {
+    #[serde(default = "default_app_mode")]
+    mode: AppMode,
+    #[serde(default)]
+    portable_dir: Option<String>,
+}
+
+fn default_app_mode() -> AppMode {
+    AppMode::Default
+}
+
+impl Default for AppModeConfig {
+    fn default() -> Self {
+        Self {
+            mode: AppMode::Default,
+            portable_dir: None,
+        }
+    }
+}
+
+/// Read the persisted app-mode.json from the given config directory.
+fn read_app_mode_config(config_dir: &Path) -> Option<AppModeConfig> {
+    let path = config_dir.join(APP_MODE_FILE);
+    fs::read_to_string(&path).ok().and_then(|data| {
+        serde_json::from_str(&data).ok().or_else(|| {
+            eprintln!("[desktop] failed to parse app-mode.json: {}", data);
+            None
+        })
+    })
+}
+
+/// Write the persisted app-mode.json to the given config directory.
+fn write_app_mode_config(config_dir: &Path, config: &AppModeConfig) {
+    let path = config_dir.join(APP_MODE_FILE);
+    if let Some(parent) = path.parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            eprintln!("[desktop] failed to create dir for app-mode.json: {e}");
+            return;
+        }
+    }
+    let data = match serde_json::to_string_pretty(config) {
+        Ok(data) => data,
+        Err(e) => {
+            eprintln!("[desktop] failed to serialize app-mode.json: {e}");
+            return;
+        }
+    };
+    if let Err(e) = fs::write(&path, data) {
+        eprintln!("[desktop] failed to write app-mode.json: {e}");
+    }
+}
+
+/// Check if a directory contains portable config/data files.
+fn dir_has_portable_data(dir: &Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    [WINDOW_STATE_FILE, TERMINAL_CONFIG_FILE]
+        .iter()
+        .any(|f| dir.join(f).is_file())
+        || dir.join("Cache").is_dir()
+        || dir.join("EBWebView").is_dir()
+}
+
+/// Resolve the default portable config directory: exe_dir/CLAUDE_CONFIG_DIR.
+fn get_default_portable_dir() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let mut dir = exe.parent()?.to_path_buf();
+    dir.push("CLAUDE_CONFIG_DIR");
+    Some(dir)
+}
+
 
 #[derive(Serialize, Deserialize)]
 struct TerminalConfig {
@@ -412,6 +494,75 @@ fn prepare_for_update_install(app: AppHandle) -> Result<(), String> {
 fn cancel_update_install(app: AppHandle) -> Result<(), String> {
     clear_app_quitting(&app);
     Ok(())
+}
+
+/// Returns the current app mode and portable directory info.
+#[tauri::command]
+fn get_app_mode() -> serde_json::Value {
+    let config_dir = if let Ok(cd) = std::env::var("CLAUDE_CONFIG_DIR") {
+        Some(PathBuf::from(&cd))
+    } else {
+        get_default_portable_dir()
+    };
+
+    serde_json::json!({
+        "mode": if std::env::var("CLAUDE_CONFIG_DIR").is_ok() { "portable" } else { "default" },
+        "portableDir": config_dir.as_ref().and_then(|p| p.to_str()),
+        "defaultPortableDir": get_default_portable_dir().as_ref().and_then(|p| p.to_str()),
+    })
+}
+
+/// Sets the app mode. Persists to app-mode.json in the current active config dir.
+/// Requires restart to take effect.
+#[tauri::command]
+fn set_app_mode(app: tauri::AppHandle, mode: String, portable_dir: Option<String>) {
+    use tauri::Manager; // 确保作用域内引入 Manager
+
+    // 确定当前正在使用的配置目录
+    let active_config_dir = if let Ok(cd) = std::env::var("CLAUDE_CONFIG_DIR") {
+        std::path::PathBuf::from(&cd)
+    } else {
+        match app.path().app_config_dir() {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("[desktop] set_app_mode: failed to resolve config dir: {e}");
+                return;
+            }
+        }
+    };
+
+    let app_mode = if mode == "portable" {
+        AppMode::Portable
+    } else {
+        AppMode::Default
+    };
+
+    let config = AppModeConfig {
+        mode: app_mode,
+        portable_dir,
+    };
+    
+    // 写入当前活跃的配置目录
+    write_app_mode_config(&active_config_dir, &config);
+
+    // 修复：同时始终将模式状态写入系统默认配置目录，
+    // 以防止应用层切换模式后，main.rs在下一次启动时读取到旧的系统全局状态
+    if let Ok(sys_dir) = app.path().app_config_dir() {
+        if sys_dir != active_config_dir {
+            write_app_mode_config(&sys_dir, &config);
+        }
+    }
+}
+
+/// Checks if the default portable directory has existing data files.
+#[tauri::command]
+fn detect_portable_dir() -> serde_json::Value {
+    let default_portable = get_default_portable_dir();
+    let has_data = default_portable.as_ref().map(|d| dir_has_portable_data(d)).unwrap_or(false);
+    serde_json::json!({
+        "defaultPortableDir": default_portable.as_ref().and_then(|p| p.to_str()),
+        "hasData": has_data,
+    })
 }
 
 fn set_app_quitting(app: &AppHandle, next: bool) {
@@ -1738,7 +1889,10 @@ pub fn run() {
             macos_notification_permission_state,
             macos_request_notification_permission,
             macos_send_notification,
-            open_windows_notification_settings
+            open_windows_notification_settings,
+            get_app_mode,
+            set_app_mode,
+            detect_portable_dir,
         ]);
 
     // macOS: native menu bar (traffic-light overlay style)
