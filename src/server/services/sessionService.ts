@@ -601,6 +601,25 @@ export class SessionService {
     }
   }
 
+  private goalCreationCommandTitle(entry: RawEntry): string | null {
+    if (
+      entry.type !== 'system' ||
+      entry.subtype !== 'local_command' ||
+      typeof entry.content !== 'string'
+    ) {
+      return null
+    }
+
+    const commandName = this.readXmlTag(entry.content, 'command-name')?.replace(/^\//, '')
+    if (commandName !== 'goal') return null
+
+    const args = this.readXmlTag(entry.content, 'command-args')?.trim()
+    if (!args || /^(status|pause|resume|complete|clear)\b/i.test(args)) return null
+
+    const title = cleanSessionTitleSource(`/goal ${args}`)
+    return title ? title.length > 80 ? title.slice(0, 80) + '...' : title : null
+  }
+
   private extractAgentToolUseId(entry: RawEntry): string | undefined {
     const content = entry.message?.content
     if (!Array.isArray(content)) return undefined
@@ -825,7 +844,13 @@ export class SessionService {
       }
     }
 
-    // 2. Look for AI-generated title (written by titleService)
+    // 2. Goal sessions should keep the original objective as the stable title.
+    for (const e of entries) {
+      const goalTitle = this.goalCreationCommandTitle(e)
+      if (goalTitle) return goalTitle
+    }
+
+    // 3. Look for AI-generated title (written by titleService)
     for (let i = entries.length - 1; i >= 0; i--) {
       const e = entries[i]!
       if (e.type === 'ai-title' && e.aiTitle) {
@@ -834,7 +859,7 @@ export class SessionService {
       }
     }
 
-    // 3. Look for first non-meta user message as title
+    // 4. Look for first non-meta user message as title
     for (const e of entries) {
       if (e.type === 'user' && !e.isMeta && e.message?.role === 'user') {
         const content = e.message.content

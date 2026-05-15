@@ -1429,6 +1429,31 @@ describe('SessionService', () => {
     expect(detail!.title).toBe('/frontend-design @website 重新设计首页')
   })
 
+  it('should keep a goal creation title instead of later goal status titles', async () => {
+    const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    await writeSessionFile('-tmp-project', sessionId, [
+      makeSnapshotEntry(),
+      {
+        parentUuid: null,
+        isSidechain: false,
+        type: 'system',
+        subtype: 'local_command',
+        content: '<command-name>/goal</command-name>\n<command-message>goal</command-message>\n<command-args>ship the actual objective</command-args>',
+        level: 'info',
+        timestamp: '2026-01-01T00:00:01.000Z',
+        uuid: 'goal-command',
+      },
+      {
+        type: 'ai-title',
+        aiTitle: '/goal status',
+        timestamp: '2026-01-01T00:02:00.000Z',
+      },
+    ])
+
+    const detail = await service.getSession(sessionId)
+    expect(detail!.title).toBe('/goal ship the actual objective')
+  })
+
   it('should display stored AI titles without internal XML tags', async () => {
     const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
     await writeSessionFile('-tmp-project', sessionId, [
