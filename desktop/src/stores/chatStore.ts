@@ -1149,7 +1149,7 @@ function applyGoalEventToActiveGoal(
     event.message &&
     /no (active )?goal/i.test(event.message)
   ) {
-    return null
+    return current
   }
   if (event.action === 'message') return current
   const baseGoal = event.action === 'created' || event.action === 'replaced' ? null : current
@@ -1187,6 +1187,12 @@ function parseGoalCommandFromLocalCommand(content: unknown): { name: string; arg
     name: commandName.replace(/^\//, ''),
     args: readXmlTag(text, 'command-args') ?? '',
   }
+}
+
+function formatVisibleLocalCommand(command: { name: string; args: string }): string {
+  const normalizedName = command.name.replace(/^\//, '')
+  const args = command.args.trim()
+  return `/${normalizedName}${args ? ` ${args}` : ''}`
 }
 
 function extractLocalCommandOutputText(content: unknown): string | null {
@@ -1501,6 +1507,14 @@ export function mapHistoryMessagesToUiMessages(
       const localCommand = parseGoalCommandFromLocalCommand(msg.content)
       if (localCommand) {
         pendingGoalCommand = localCommand
+        if (localCommand.name === 'goal') {
+          uiMessages.push({
+            id: msg.id || nextId(),
+            type: 'user_text',
+            content: formatVisibleLocalCommand(localCommand),
+            timestamp,
+          })
+        }
         continue
       }
 

@@ -277,6 +277,11 @@ describe('chatStore history mapping', () => {
 
     expect(mapHistoryMessagesToUiMessages(messages)).toMatchObject([
       {
+        id: 'goal-command',
+        type: 'user_text',
+        content: '/goal --tokens 2k ship the smoke test',
+      },
+      {
         id: 'goal-output',
         type: 'goal_event',
         action: 'created',
@@ -314,6 +319,11 @@ describe('chatStore history mapping', () => {
     ]
 
     expect(mapHistoryMessagesToUiMessages(messages)).toMatchObject([
+      {
+        id: 'goal-command',
+        type: 'user_text',
+        content: '/goal ship the replacement target',
+      },
       {
         id: 'goal-output',
         type: 'goal_event',
@@ -355,6 +365,18 @@ describe('chatStore history mapping', () => {
           timestamp: '2026-04-06T00:00:02.000Z',
           content: '<local-command-stdout>Goal marked complete.</local-command-stdout>',
         },
+        {
+          id: 'goal-status-command',
+          type: 'system',
+          timestamp: '2026-04-06T00:00:03.000Z',
+          content: '<command-name>/goal</command-name>\n<command-args>status</command-args>',
+        },
+        {
+          id: 'goal-stale-empty-output',
+          type: 'system',
+          timestamp: '2026-04-06T00:00:04.000Z',
+          content: '<local-command-stdout>No active goal.</local-command-stdout>',
+        },
       ],
     })
 
@@ -368,6 +390,11 @@ describe('chatStore history mapping', () => {
 
     expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).toMatchObject([
       {
+        id: 'goal-command',
+        type: 'user_text',
+        content: '/goal ship the smoke test',
+      },
+      {
         id: 'goal-output',
         type: 'goal_event',
         action: 'created',
@@ -378,6 +405,17 @@ describe('chatStore history mapping', () => {
         type: 'goal_event',
         action: 'completed',
         message: 'Goal marked complete.',
+      },
+      {
+        id: 'goal-status-command',
+        type: 'user_text',
+        content: '/goal status',
+      },
+      {
+        id: 'goal-stale-empty-output',
+        type: 'goal_event',
+        action: 'message',
+        message: 'No active goal.',
       },
     ])
     expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.activeGoal).toMatchObject({

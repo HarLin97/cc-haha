@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { switchSession } from '../../bootstrap/state.js'
 import type { SessionId } from '../../types/ids.js'
+import type { LocalJSXCommandContext } from '../../types/command.js'
+import { createCommandInputMessage } from '../../utils/messages.js'
 import { call } from './goal.js'
 
-async function runGoal(args: string) {
+async function runGoal(args: string, context: Partial<LocalJSXCommandContext> = {}) {
   const calls: Array<{
     result?: string
     options?: {
@@ -17,7 +19,10 @@ async function runGoal(args: string) {
     (result, options) => {
       calls.push({ result, options })
     },
-    {} as never,
+    {
+      messages: [],
+      ...context,
+    } as LocalJSXCommandContext,
     args,
   )
 
@@ -106,5 +111,47 @@ describe('/goal command', () => {
       display: 'system',
     })
     expect(result.options?.shouldQuery).toBeUndefined()
+  })
+
+  test('hydrates completed goal state from persisted slash command history', async () => {
+    switchSession(`goal-command-${crypto.randomUUID()}` as SessionId)
+
+    const result = await runGoal('status', {
+      messages: [
+        createCommandInputMessage([
+          '<command-name>/goal</command-name>',
+          '<command-args>ship persisted goal</command-args>',
+        ].join('\n')),
+        createCommandInputMessage([
+          '<local-command-stdout>',
+          'Goal created.',
+          'Goal: active',
+          'Objective: ship persisted goal',
+          'Budget: 42 / 2,000 tokens',
+          'Elapsed: 1m',
+          'Continuations: 3',
+          '</local-command-stdout>',
+        ].join('\n')),
+        createCommandInputMessage([
+          '<local-command-stdout>',
+          'Goal: complete',
+          'Objective: ship persisted goal',
+          'Budget: 1,234 / 2,000 tokens',
+          'Elapsed: 23m',
+          'Continuations: 2',
+          '</local-command-stdout>',
+        ].join('\n')),
+        createCommandInputMessage([
+          '<command-name>/goal</command-name>',
+          '<command-args>status</command-args>',
+        ].join('\n')),
+        createCommandInputMessage('<local-command-stdout>No active goal.</local-command-stdout>'),
+      ],
+    })
+
+    expect(result.result).toContain('Goal: complete')
+    expect(result.result).toContain('Objective: ship persisted goal')
+    expect(result.result).toContain('Budget: 1,234 / 2,000 tokens')
+    expect(result.result).toContain('Continuations: 2')
   })
 })

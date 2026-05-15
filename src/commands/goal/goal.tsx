@@ -7,6 +7,7 @@ import {
   clearThreadGoal,
   formatGoalStatus,
   getThreadGoal,
+  hydrateThreadGoalFromMessages,
   parseGoalCommand,
   setThreadGoal,
   updateThreadGoalStatus,
@@ -18,18 +19,23 @@ export async function call(
   args: string,
 ): Promise<React.ReactNode> {
   const threadId = getSessionId()
+  const getCurrentGoal = () =>
+    getThreadGoal(threadId) ?? hydrateThreadGoalFromMessages(threadId, _context.messages)
+
   try {
     const parsed = parseGoalCommand(args)
     if (parsed.type === 'status') {
-      onDone(formatGoalStatus(getThreadGoal(threadId)), { display: 'system' })
+      onDone(formatGoalStatus(getCurrentGoal()), { display: 'system' })
       return null
     }
     if (parsed.type === 'clear') {
+      getCurrentGoal()
       const cleared = clearThreadGoal(threadId)
       onDone(cleared ? 'Goal cleared.' : 'No active goal.', { display: 'system' })
       return null
     }
     if (parsed.type === 'pause') {
+      getCurrentGoal()
       const goal = updateThreadGoalStatus(threadId, 'paused')
       onDone(goal ? formatGoalStatus(goal) : 'No active goal.', {
         display: 'system',
@@ -37,6 +43,7 @@ export async function call(
       return null
     }
     if (parsed.type === 'resume') {
+      getCurrentGoal()
       const goal = updateThreadGoalStatus(threadId, 'active')
       onDone(goal ? formatGoalStatus(goal) : 'No goal to resume.', {
         display: 'system',
@@ -46,6 +53,7 @@ export async function call(
       return null
     }
     if (parsed.type === 'complete') {
+      getCurrentGoal()
       const goal = updateThreadGoalStatus(threadId, 'complete')
       onDone(goal ? 'Goal marked complete.' : 'No active goal.', {
         display: 'system',
@@ -53,7 +61,7 @@ export async function call(
       return null
     }
 
-    const replaced = Boolean(getThreadGoal(threadId))
+    const replaced = Boolean(getCurrentGoal())
     const goal = setThreadGoal(threadId, {
       objective: parsed.objective,
       tokenBudget: parsed.tokenBudget,
