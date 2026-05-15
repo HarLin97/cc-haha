@@ -681,6 +681,19 @@ export const en = {
   'settings.computerUse.flagClipboard': 'Clipboard Access',
   'settings.computerUse.flagSystemKeys': 'System Key Combos',
 
+  // Settings > General - Mode
+  'settings.general.modeTitle': 'Mode',
+  'settings.general.modeDescription': 'Choose where app data is stored. Default mode respects the CLAUDE_CONFIG_DIR env var or uses system directories. Portable mode stores data in a configurable directory.',
+  'settings.general.modeDefault': 'Default',
+  'settings.general.modePortable': 'Portable',
+  'settings.general.modeDefaultHint': 'Uses CLAUDE_CONFIG_DIR env var if set, otherwise system directory (%APPDATA% on Windows).',
+  'settings.general.modePortableDir': 'Portable config dir',
+  'settings.general.modeSwitchTitle': 'Switch Mode?',
+  'settings.general.modeSwitchBody': 'Switch to {mode}? This requires a restart to take effect.',
+  'settings.general.modeSwitchConfirm': 'Switch and Restart Later',
+  'settings.general.modeRestartTitle': 'Restart Required',
+  'settings.general.modeRestartHint': 'Restart the app for the mode change to take effect.',
+
   // Settings > General
   'settings.general.appearanceTitle': 'Appearance',
   'settings.general.appearanceDescription': 'Switch between the warm classic workspace, dark workspace, and a pure white workspace.',
