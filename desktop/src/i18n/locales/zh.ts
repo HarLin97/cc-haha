@@ -558,8 +558,10 @@ export const zh: Record<TranslationKey, string> = {
   'settings.memory.refresh': '刷新',
   'settings.memory.projects': '项目',
   'settings.memory.files': '记忆文件',
+  'settings.memory.resourceManager': '资源管理器',
   'settings.memory.editor': '编辑',
   'settings.memory.preview': '预览',
+  'settings.memory.rendered': '已渲染',
   'settings.memory.emptyProjects': '还没有找到记忆项目。',
   'settings.memory.emptyFiles': '还没有找到记忆文件。',
   'settings.memory.selectFile': '选择一个记忆文件。',
@@ -574,9 +576,11 @@ export const zh: Record<TranslationKey, string> = {
   'settings.memory.revert': '还原',
   'settings.memory.projectSearchPlaceholder': '按路径搜索项目...',
   'settings.memory.fileSearchPlaceholder': '搜索记忆文件...',
+  'settings.memory.resourceSearchPlaceholder': '搜索项目或记忆文件...',
   'settings.memory.noProjectMatches': '没有匹配的项目。',
   'settings.memory.noFileMatches': '没有匹配的记忆文件。',
   'settings.memory.clearSearch': '清空搜索',
+  'settings.memory.toggleFolder': '展开或折叠 {name}',
 
   // Settings > Plugins
   'settings.plugins.title': '已安装插件',

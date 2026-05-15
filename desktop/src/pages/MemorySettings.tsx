@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { BookOpenText, Database, FileText, FolderGit2, RefreshCw, RotateCcw, Save, Search, X } from 'lucide-react'
+import { BookOpenText, ChevronDown, ChevronRight, Database, FileText, Folder, FolderGit2, RefreshCw, RotateCcw, Save, Search, X } from 'lucide-react'
 import { Button } from '../components/shared/Button'
 import { MarkdownRenderer } from '../components/markdown/MarkdownRenderer'
 import { useTranslation } from '../i18n'
@@ -37,8 +37,9 @@ export function MemorySettings() {
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
   const pendingMemoryPath = useUIStore((s) => s.pendingMemoryPath)
   const setPendingMemoryPath = useUIStore((s) => s.setPendingMemoryPath)
-  const [projectQuery, setProjectQuery] = useState('')
-  const [fileQuery, setFileQuery] = useState('')
+  const [resourceQuery, setResourceQuery] = useState('')
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null)
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
 
   const activeSession = useMemo(
     () => sessions.find((session) => session.id === activeSessionId),
@@ -48,12 +49,16 @@ export function MemorySettings() {
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null
   const isDirty = Boolean(selectedFile && draftContent !== selectedFile.content)
   const filteredProjects = useMemo(
-    () => filterProjects(projects, projectQuery),
-    [projectQuery, projects],
+    () => filterProjects(projects, resourceQuery, selectedProjectId, files),
+    [files, projects, resourceQuery, selectedProjectId],
   )
   const filteredFiles = useMemo(
-    () => filterFiles(files, fileQuery),
-    [fileQuery, files],
+    () => filterFiles(files, resourceQuery),
+    [files, resourceQuery],
+  )
+  const fileTree = useMemo(
+    () => buildMemoryFileTree(filteredFiles),
+    [filteredFiles],
   )
   const previewContent = stripMarkdownFrontmatter(draftContent)
 
@@ -67,10 +72,9 @@ export function MemorySettings() {
   }, [fetchFiles, selectedProjectId])
 
   useEffect(() => {
-    if (!projectQuery.trim() || filteredProjects.length === 0) return
-    if (selectedProjectId && filteredProjects.some((project) => project.id === selectedProjectId)) return
-    selectProject(filteredProjects[0]!.id)
-  }, [filteredProjects, projectQuery, selectProject, selectedProjectId])
+    if (!selectedProjectId) return
+    setExpandedProjectId(selectedProjectId)
+  }, [selectedProjectId])
 
   useEffect(() => {
     if (!selectedProjectId || selectedFile || isLoadingFiles || isLoadingFile) return
@@ -118,9 +122,15 @@ export function MemorySettings() {
     }
   }
 
-  const handleProjectSelect = (projectId: string) => {
-    if (projectId === selectedProjectId) return
-    selectProject(projectId)
+  const handleProjectToggle = (projectId: string) => {
+    if (expandedProjectId === projectId) {
+      setExpandedProjectId(null)
+      return
+    }
+    setExpandedProjectId(projectId)
+    if (projectId !== selectedProjectId) {
+      selectProject(projectId)
+    }
   }
 
   const handleFileOpen = (file: MemoryFile) => {
@@ -128,55 +138,98 @@ export function MemorySettings() {
     void openFile(selectedProjectId, file.path)
   }
 
+  const toggleFolder = (path: string) => {
+    setCollapsedFolders((previous) => {
+      const next = new Set(previous)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
+    })
+  }
+
+  const forceExpandFiles = Boolean(resourceQuery.trim())
+
   return (
-    <div className="flex h-full min-h-[640px] flex-col gap-4">
-      <header className="grid gap-4 border-b border-[var(--color-border)] pb-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-        <div className="grid min-w-0 gap-2">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-container-low)] text-[var(--color-brand)]">
-              <BookOpenText size={16} aria-hidden="true" />
-            </span>
-            <h2 className="text-xl font-semibold text-[var(--color-text-primary)]">
+    <div className="flex h-full min-h-[640px] flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)]">
+      <header className="grid min-h-[58px] border-b border-[var(--color-border)] bg-[var(--color-surface-container-low)] lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="flex min-w-0 items-center gap-3 border-b border-[var(--color-border)] px-4 py-3 lg:border-b-0 lg:border-r">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-brand)]">
+            <BookOpenText size={16} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-semibold text-[var(--color-text-primary)]">
               {t('settings.memory.title')}
             </h2>
-          </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pl-10 text-xs text-[var(--color-text-tertiary)]">
-            <span className="truncate font-mono">{activeCwd ? projectDisplayName(activeCwd) : '~/.claude/projects'}</span>
-            <span>{t('settings.memory.fileCount', { count: files.length })}</span>
+            <p className="truncate text-xs text-[var(--color-text-tertiary)]">
+              {t('settings.memory.projects')}
+            </p>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={handleRefresh}
-          loading={isLoadingProjects || isLoadingFiles}
-          icon={<RefreshCw size={15} aria-hidden="true" />}
-        >
-          {t('settings.memory.refresh')}
-        </Button>
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <Breadcrumb
+            project={selectedProject}
+            filePath={selectedFile?.path}
+            fallbackProject={activeCwd ? projectDisplayName(activeCwd) : '~/.claude/projects'}
+            fallbackFile={t('settings.memory.noFileSelected')}
+          />
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleRefresh}
+              loading={isLoadingProjects || isLoadingFiles}
+              icon={<RefreshCw size={15} aria-hidden="true" />}
+            >
+              {t('settings.memory.refresh')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={!selectedFile || !isDirty || isSaving}
+              onClick={() => selectedFile && updateDraft(selectedFile.content)}
+              icon={<RotateCcw size={14} aria-hidden="true" />}
+            >
+              {t('settings.memory.revert')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={!selectedFile || !isDirty}
+              loading={isSaving}
+              onClick={() => void saveFile()}
+              icon={<Save size={14} aria-hidden="true" />}
+            >
+              {t('common.save')}
+            </Button>
+          </div>
+        </div>
       </header>
 
       {error && (
-        <div className="rounded-[var(--radius-md)] border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 px-3 py-2 text-sm text-[var(--color-error)]">
+        <div className="m-3 rounded-[var(--radius-md)] border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 px-3 py-2 text-sm text-[var(--color-error)]">
           {error}
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[390px_minmax(0,1fr)]">
-        <aside className="grid min-h-0 grid-rows-[minmax(210px,0.9fr)_minmax(260px,1.1fr)] overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)]">
-          <section className="flex min-h-0 flex-col">
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="min-h-0 overflow-hidden border-b border-[var(--color-border)] lg:border-b-0 lg:border-r">
+          <section className="flex h-full min-h-0 flex-col bg-[var(--color-surface-container-lowest)]">
             <PanelHeader
-              icon={<FolderGit2 size={15} aria-hidden="true" />}
-              title={t('settings.memory.projects')}
+              icon={<Database size={15} aria-hidden="true" />}
+              title={t('settings.memory.resourceManager')}
               meta={isLoadingProjects ? t('common.loading') : String(projects.length)}
             />
             <div className="px-3 py-3">
               <SearchField
-                value={projectQuery}
-                onChange={setProjectQuery}
-                placeholder={t('settings.memory.projectSearchPlaceholder')}
-                ariaLabel={t('settings.memory.projectSearchPlaceholder')}
+                value={resourceQuery}
+                onChange={setResourceQuery}
+                placeholder={t('settings.memory.resourceSearchPlaceholder')}
+                ariaLabel={t('settings.memory.resourceSearchPlaceholder')}
                 clearLabel={t('settings.memory.clearSearch')}
               />
             </div>
@@ -186,58 +239,41 @@ export function MemorySettings() {
               ) : filteredProjects.length === 0 ? (
                 <EmptyState icon={<Search size={18} />} text={t('settings.memory.noProjectMatches')} />
               ) : (
-                filteredProjects.map((project) => (
-                  <ProjectRow
-                    key={project.id}
-                    project={project}
-                    active={project.id === selectedProjectId}
-                    onSelect={() => handleProjectSelect(project.id)}
-                  />
-                ))
-              )}
-            </div>
-          </section>
-
-          <section className="flex min-h-0 flex-col border-t border-[var(--color-border)]">
-            <PanelHeader
-              icon={<Database size={15} aria-hidden="true" />}
-              title={t('settings.memory.files')}
-              meta={isLoadingFiles ? t('common.loading') : `${files.length}`}
-            />
-            <div className="px-3 py-3">
-              <SearchField
-                value={fileQuery}
-                onChange={setFileQuery}
-                placeholder={t('settings.memory.fileSearchPlaceholder')}
-                ariaLabel={t('settings.memory.fileSearchPlaceholder')}
-                clearLabel={t('settings.memory.clearSearch')}
-              />
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-              {files.length === 0 && !isLoadingFiles ? (
-                <EmptyState icon={<FileText size={18} />} text={t('settings.memory.emptyFiles')} />
-              ) : filteredFiles.length === 0 ? (
-                <EmptyState icon={<Search size={18} />} text={t('settings.memory.noFileMatches')} />
-              ) : (
-                filteredFiles.map((file) => (
-                  <FileRow
-                    key={file.path}
-                    file={file}
-                    active={file.path === selectedFile?.path}
-                    onSelect={() => handleFileOpen(file)}
-                  />
-                ))
+                <div className="py-1">
+                  {filteredProjects.map((project) => {
+                    const isExpanded = project.id === expandedProjectId
+                    const isSelected = project.id === selectedProjectId
+                    const visibleFileTree = isSelected ? fileTree : []
+                    return (
+                      <ProjectTreeRow
+                        key={project.id}
+                        project={project}
+                        expanded={isExpanded}
+                        active={isSelected}
+                        loading={isSelected && isLoadingFiles}
+                        fileTree={visibleFileTree}
+                        activePath={selectedFile?.path ?? null}
+                        collapsedFolders={collapsedFolders}
+                        forceExpanded={forceExpandFiles}
+                        onToggle={() => handleProjectToggle(project.id)}
+                        onToggleFolder={toggleFolder}
+                        onFileSelect={handleFileOpen}
+                        emptyText={t('settings.memory.emptyFiles')}
+                      />
+                    )
+                  })}
+                </div>
               )}
             </div>
           </section>
         </aside>
 
-        <section className="min-h-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)]">
-          <div className="grid gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <section className="min-h-0 overflow-hidden bg-[var(--color-surface-container-lowest)]">
+          <div className="grid gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="truncate text-base font-semibold text-[var(--color-text-primary)]">
-                  {selectedFile?.path ?? t('settings.memory.noFileSelected')}
+                <h3 className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                  {selectedFile?.path ? fileNameFromPath(selectedFile.path) : t('settings.memory.noFileSelected')}
                 </h3>
                 {isDirty && <Badge>{t('settings.memory.unsaved')}</Badge>}
                 {lastSavedAt && !isDirty && <Badge>{t('settings.memory.saved')}</Badge>}
@@ -246,36 +282,22 @@ export function MemorySettings() {
                 {selectedProject?.memoryDir ?? t('settings.memory.selectProject')}
               </p>
             </div>
-            <div className="flex shrink-0 gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={!selectedFile || !isDirty || isSaving}
-                onClick={() => selectedFile && updateDraft(selectedFile.content)}
-                icon={<RotateCcw size={14} aria-hidden="true" />}
-              >
-                {t('settings.memory.revert')}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={!selectedFile || !isDirty}
-                loading={isSaving}
-                onClick={() => void saveFile()}
-                icon={<Save size={14} aria-hidden="true" />}
-              >
-                {t('common.save')}
-              </Button>
+            <div className="flex shrink-0 items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
+              {selectedFile ? (
+                <>
+                  <span>{formatBytes(selectedFile.bytes)}</span>
+                  {selectedFile.updatedAt ? <span>{formatDate(selectedFile.updatedAt)}</span> : null}
+                </>
+              ) : null}
             </div>
           </div>
 
           {selectedFile ? (
             <div className="grid min-h-[560px] grid-rows-[minmax(300px,1fr)_minmax(260px,0.95fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] 2xl:grid-rows-1">
               <div className="min-h-0 border-b border-[var(--color-border)] 2xl:border-b-0 2xl:border-r">
-                <div className="flex h-10 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] px-3 text-xs font-medium uppercase tracking-normal text-[var(--color-text-tertiary)]">
+                <div className="flex h-10 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-3 text-xs font-medium uppercase tracking-normal text-[var(--color-text-tertiary)]">
                   <span>{t('settings.memory.editor')}</span>
-                  <span>{formatBytes(selectedFile.bytes)}</span>
+                  <span>MARKDOWN</span>
                 </div>
                 <textarea
                   aria-label={t('settings.memory.editor')}
@@ -286,9 +308,9 @@ export function MemorySettings() {
                 />
               </div>
               <div className="min-h-0 overflow-y-auto">
-                <div className="flex h-10 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] px-3 text-xs font-medium uppercase tracking-normal text-[var(--color-text-tertiary)]">
+                <div className="flex h-10 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-3 text-xs font-medium uppercase tracking-normal text-[var(--color-text-tertiary)]">
                   <span>{t('settings.memory.preview')}</span>
-                  <span>{selectedFile.updatedAt ? formatDate(selectedFile.updatedAt) : ''}</span>
+                  <span>{t('settings.memory.rendered')}</span>
                 </div>
                 <div className="p-6">
                   <MarkdownRenderer content={previewContent || ' '} variant="document" />
@@ -303,6 +325,36 @@ export function MemorySettings() {
         </section>
       </div>
     </div>
+  )
+}
+
+function Breadcrumb({
+  project,
+  filePath,
+  fallbackProject,
+  fallbackFile,
+}: {
+  project: MemoryProject | null
+  filePath?: string
+  fallbackProject: string
+  fallbackFile: string
+}) {
+  const projectLabel = project ? projectDisplayName(project.label) : fallbackProject
+  const parts = filePath ? [projectLabel, ...filePath.split('/').filter(Boolean)] : [projectLabel, fallbackFile]
+  return (
+    <nav aria-label="Memory file path" className="flex min-w-0 items-center gap-1 text-sm text-[var(--color-text-tertiary)]">
+      {parts.map((part, index) => {
+        const isLast = index === parts.length - 1
+        return (
+          <span key={`${part}-${index}`} className="flex min-w-0 items-center gap-1">
+            {index > 0 ? <ChevronRight size={14} className="shrink-0" aria-hidden="true" /> : null}
+            <span className={`truncate ${isLast ? 'font-semibold text-[var(--color-text-primary)]' : ''}`}>
+              {part}
+            </span>
+          </span>
+        )
+      })}
+    </nav>
   )
 }
 
@@ -359,38 +411,80 @@ function PanelHeader({ icon, title, meta }: { icon?: ReactNode; title: string; m
   )
 }
 
-function ProjectRow({
+function ProjectTreeRow({
   project,
+  expanded,
   active,
-  onSelect,
+  loading,
+  fileTree,
+  activePath,
+  collapsedFolders,
+  forceExpanded,
+  onToggle,
+  onToggleFolder,
+  onFileSelect,
+  emptyText,
 }: {
   project: MemoryProject
+  expanded: boolean
   active: boolean
-  onSelect: () => void
+  loading: boolean
+  fileTree: MemoryTreeNode[]
+  activePath: string | null
+  collapsedFolders: Set<string>
+  forceExpanded: boolean
+  onToggle: () => void
+  onToggleFolder: (path: string) => void
+  onFileSelect: (file: MemoryFile) => void
+  emptyText: string
 }) {
   const t = useTranslation()
   const display = projectDisplayName(project.label)
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      title={project.label}
-      className={`mb-1 w-full rounded-md px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:shadow-[var(--shadow-focus-ring)] ${
-        active
-          ? 'bg-[var(--color-surface-selected)] text-[var(--color-text-primary)] shadow-[inset_3px_0_0_var(--color-brand)]'
-          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]'
-      }`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate text-sm font-semibold">{display}</span>
-        {project.isCurrent && <Badge>{t('settings.memory.current')}</Badge>}
-      </div>
-      <p className="mt-1 truncate text-xs text-[var(--color-text-tertiary)]">{project.label}</p>
-      <div className="mt-1.5 flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
-        <span>{t('settings.memory.fileCount', { count: project.fileCount })}</span>
-        {!project.exists ? <span>{t('settings.memory.missing')}</span> : null}
-      </div>
-    </button>
+    <div className="mb-0.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        title={project.label}
+        aria-expanded={expanded}
+        aria-label={t('settings.memory.toggleFolder', { name: display })}
+        className={`flex min-h-8 w-full items-center gap-1.5 rounded-sm px-1.5 py-1 text-left transition-colors focus:outline-none focus-visible:shadow-[var(--shadow-focus-ring)] ${
+          active
+            ? 'bg-[var(--color-surface-selected)] text-[var(--color-text-primary)]'
+            : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]'
+        }`}
+      >
+        {expanded ? <ChevronDown size={14} className="shrink-0" aria-hidden="true" /> : <ChevronRight size={14} className="shrink-0" aria-hidden="true" />}
+        <Folder size={15} className="shrink-0 text-[var(--color-brand)]" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{display}</span>
+        <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">
+          {project.exists ? project.fileCount : t('settings.memory.missing')}
+        </span>
+      </button>
+
+      {expanded ? (
+        <div className="ml-[18px] border-l border-[var(--color-border)] pl-2">
+          {loading ? (
+            <div className="px-2 py-1.5 text-xs text-[var(--color-text-tertiary)]">{t('common.loading')}</div>
+          ) : fileTree.length === 0 ? (
+            <div className="px-2 py-1.5 text-xs text-[var(--color-text-tertiary)]">{emptyText}</div>
+          ) : (
+            fileTree.map((node) => (
+              <MemoryTreeRow
+                key={node.id}
+                node={node}
+                depth={1}
+                activePath={activePath}
+                collapsedFolders={collapsedFolders}
+                forceExpanded={forceExpanded}
+                onToggleFolder={onToggleFolder}
+                onFileSelect={onFileSelect}
+              />
+            ))
+          )}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -398,43 +492,92 @@ function FileRow({
   file,
   active,
   onSelect,
+  depth = 0,
 }: {
   file: MemoryFile
   active: boolean
   onSelect: () => void
+  depth?: number
 }) {
-  const t = useTranslation()
   return (
     <button
       type="button"
       onClick={onSelect}
-      className={`mb-1 w-full rounded-md px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:shadow-[var(--shadow-focus-ring)] ${
+      style={{ paddingLeft: `${4 + Math.max(depth - 1, 0) * 16}px` }}
+      className={`mb-0.5 flex min-h-8 w-full items-center gap-1.5 rounded-sm py-1 pr-2 text-left transition-colors focus:outline-none focus-visible:shadow-[var(--shadow-focus-ring)] ${
         active
-          ? 'bg-[var(--color-surface-selected)] text-[var(--color-text-primary)] shadow-[inset_3px_0_0_var(--color-brand)]'
+          ? 'bg-[var(--color-surface-selected)] text-[var(--color-text-primary)]'
           : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]'
       }`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2">
-          <FileText size={14} className="shrink-0 text-[var(--color-text-tertiary)]" aria-hidden="true" />
-          <span className="min-w-0 truncate text-sm font-semibold">{file.title}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-1.5">
-          {file.isIndex ? <Badge>{t('settings.memory.indexFile')}</Badge> : null}
-          {file.type && <Badge>{file.type}</Badge>}
-        </span>
-      </div>
-      <p className="mt-1 truncate font-mono text-[11px] text-[var(--color-text-tertiary)]">{file.path}</p>
-      {file.description && (
-        <p className="mt-1 truncate text-xs leading-5 text-[var(--color-text-secondary)]">
-          {file.description}
-        </p>
-      )}
-      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--color-text-tertiary)]">
-        <span>{formatBytes(file.bytes)}</span>
-        {file.updatedAt ? <span>{formatDate(file.updatedAt)}</span> : null}
-      </div>
+      <FileText size={14} className="shrink-0 text-[var(--color-text-tertiary)]" aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate text-sm">{file.title}</span>
     </button>
+  )
+}
+
+function MemoryTreeRow({
+  node,
+  depth,
+  activePath,
+  collapsedFolders,
+  forceExpanded,
+  onToggleFolder,
+  onFileSelect,
+}: {
+  node: MemoryTreeNode
+  depth: number
+  activePath: string | null
+  collapsedFolders: Set<string>
+  forceExpanded: boolean
+  onToggleFolder: (path: string) => void
+  onFileSelect: (file: MemoryFile) => void
+}) {
+  const t = useTranslation()
+  if (node.kind === 'file') {
+    return (
+      <FileRow
+        file={node.file}
+        active={node.file.path === activePath}
+        depth={depth}
+        onSelect={() => onFileSelect(node.file)}
+      />
+    )
+  }
+
+  const isCollapsed = !forceExpanded && collapsedFolders.has(node.path)
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => onToggleFolder(node.path)}
+        aria-expanded={!isCollapsed}
+        aria-label={t('settings.memory.toggleFolder', { name: node.name })}
+        className="mb-0.5 flex min-h-8 w-full items-center gap-1.5 rounded-sm py-1 pr-2 text-left text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] focus:outline-none focus-visible:shadow-[var(--shadow-focus-ring)]"
+        style={{ paddingLeft: `${4 + Math.max(depth - 1, 0) * 16}px` }}
+      >
+        {isCollapsed ? <ChevronRight size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+        <Folder size={14} className="shrink-0 text-[var(--color-brand)]" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate font-medium">{node.name}</span>
+        <span className="ml-auto text-[11px] font-normal text-[var(--color-text-tertiary)]">{node.fileCount}</span>
+      </button>
+      {!isCollapsed ? (
+        <div className="ml-[18px] border-l border-[var(--color-border)] pl-2">
+          {node.children.map((child) => (
+            <MemoryTreeRow
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              activePath={activePath}
+              collapsedFolders={collapsedFolders}
+              forceExpanded={forceExpanded}
+              onToggleFolder={onToggleFolder}
+              onFileSelect={onFileSelect}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -463,11 +606,19 @@ function normalizeSearch(value: string): string {
   return value.toLowerCase().replace(/\\/g, '/').replace(/\/+/g, '/').trim()
 }
 
-function filterProjects(projects: MemoryProject[], query: string): MemoryProject[] {
+function filterProjects(
+  projects: MemoryProject[],
+  query: string,
+  selectedProjectId: string | null,
+  selectedProjectFiles: MemoryFile[],
+): MemoryProject[] {
   const normalized = normalizeSearch(query)
   if (!normalized) return projects
   return projects.filter((project) =>
-    normalizeSearch(`${project.label} ${project.memoryDir} ${project.id}`).includes(normalized),
+    normalizeSearch(`${project.label} ${project.memoryDir} ${project.id}`).includes(normalized) ||
+    (project.id === selectedProjectId && selectedProjectFiles.some((file) =>
+      normalizeSearch(`${file.title} ${file.path} ${file.description ?? ''} ${file.type ?? ''}`).includes(normalized),
+    )),
   )
 }
 
@@ -514,6 +665,88 @@ function resolveMemoryFileTarget(projects: MemoryProject[], absolutePath: string
     }
   }
   return null
+}
+
+type MemoryTreeNode =
+  | {
+      kind: 'folder'
+      id: string
+      name: string
+      path: string
+      fileCount: number
+      children: MemoryTreeNode[]
+    }
+  | {
+      kind: 'file'
+      id: string
+      name: string
+      path: string
+      file: MemoryFile
+    }
+
+type MutableFolderNode = Extract<MemoryTreeNode, { kind: 'folder' }>
+
+function buildMemoryFileTree(files: MemoryFile[]): MemoryTreeNode[] {
+  const root: MutableFolderNode = {
+    kind: 'folder',
+    id: '__root__',
+    name: '__root__',
+    path: '',
+    fileCount: 0,
+    children: [],
+  }
+
+  const folders = new Map<string, MutableFolderNode>([['', root]])
+  for (const file of files) {
+    const parts = file.path.split('/').filter(Boolean)
+    let parent = root
+    parts.slice(0, -1).forEach((part, index) => {
+      const folderPath = parts.slice(0, index + 1).join('/')
+      let folder = folders.get(folderPath)
+      if (!folder) {
+        folder = {
+          kind: 'folder',
+          id: `folder:${folderPath}`,
+          name: part,
+          path: folderPath,
+          fileCount: 0,
+          children: [],
+        }
+        folders.set(folderPath, folder)
+        parent.children.push(folder)
+      }
+      folder.fileCount += 1
+      parent = folder
+    })
+    parent.children.push({
+      kind: 'file',
+      id: `file:${file.path}`,
+      name: parts[parts.length - 1] ?? file.name,
+      path: file.path,
+      file,
+    })
+  }
+
+  sortMemoryTree(root.children)
+  return root.children
+}
+
+function sortMemoryTree(nodes: MemoryTreeNode[]): void {
+  nodes.sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
+    const aIndex = a.kind === 'file' ? a.file.isIndex : false
+    const bIndex = b.kind === 'file' ? b.file.isIndex : false
+    if (aIndex !== bIndex) return aIndex ? -1 : 1
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  })
+  for (const node of nodes) {
+    if (node.kind === 'folder') sortMemoryTree(node.children)
+  }
+}
+
+function fileNameFromPath(path: string): string {
+  const parts = path.split('/').filter(Boolean)
+  return parts[parts.length - 1] ?? path
 }
 
 function formatDate(value: string): string {
