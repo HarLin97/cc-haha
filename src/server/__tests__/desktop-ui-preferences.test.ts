@@ -60,6 +60,8 @@ describe('DesktopUiPreferencesService', () => {
         projectOrder: [],
         pinnedProjects: [],
         hiddenProjects: [],
+        projectOrganization: 'recentProject',
+        projectSortBy: 'updatedAt',
       },
     })
   })
@@ -95,6 +97,8 @@ describe('DesktopUiPreferencesService', () => {
         projectOrder: ['/workspace/alpha', '/workspace/beta'],
         pinnedProjects: ['/workspace/beta'],
         hiddenProjects: ['/workspace/gamma'],
+        projectOrganization: 'recentProject',
+        projectSortBy: 'updatedAt',
       },
     })
     expect(after).toEqual({
@@ -104,6 +108,8 @@ describe('DesktopUiPreferencesService', () => {
         projectOrder: ['/workspace/gamma'],
         pinnedProjects: [],
         hiddenProjects: ['/workspace/beta'],
+        projectOrganization: 'recentProject',
+        projectSortBy: 'updatedAt',
       },
     })
     expect(await readDesktopUiFile()).toEqual(after)
@@ -132,6 +138,8 @@ describe('desktop UI preferences API', () => {
       projectOrder: ['/workspace/beta', '/workspace/alpha'],
       pinnedProjects: ['/workspace/beta'],
       hiddenProjects: ['/workspace/old'],
+      projectOrganization: 'project',
+      projectSortBy: 'createdAt',
     })
 
     const putRes = await handleDesktopUiApi(putReq.req, putReq.url, putReq.segments)
@@ -146,6 +154,8 @@ describe('desktop UI preferences API', () => {
           projectOrder: ['/workspace/beta', '/workspace/alpha'],
           pinnedProjects: ['/workspace/beta'],
           hiddenProjects: ['/workspace/old'],
+          projectOrganization: 'project',
+          projectSortBy: 'createdAt',
         },
       },
     })
@@ -163,6 +173,8 @@ describe('desktop UI preferences API', () => {
           projectOrder: ['/workspace/beta', '/workspace/alpha'],
           pinnedProjects: ['/workspace/beta'],
           hiddenProjects: ['/workspace/old'],
+          projectOrganization: 'project',
+          projectSortBy: 'createdAt',
         },
       },
     })

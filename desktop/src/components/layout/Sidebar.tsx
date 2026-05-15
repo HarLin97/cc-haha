@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { ChevronDown, Folder, FolderOpen, MoreHorizontal, Pin, PinOff, RefreshCw, RotateCcw, SquarePen, X } from 'lucide-react'
+import { Archive, Check, ChevronDown, Clock, Folder, FolderOpen, FolderPlus, MoreHorizontal, Pin, PinOff, RefreshCw, RotateCcw, SquarePen, X } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useTranslation } from '../../i18n'
@@ -18,8 +18,14 @@ const SESSION_LIST_FOCUS_REFRESH_MIN_MS = 5_000
 const PROJECT_ORDER_STORAGE_KEY = 'cc-haha-sidebar-project-order'
 const PROJECT_PINNED_STORAGE_KEY = 'cc-haha-sidebar-pinned-projects'
 const PROJECT_HIDDEN_STORAGE_KEY = 'cc-haha-sidebar-hidden-projects'
+const PROJECT_ORGANIZATION_STORAGE_KEY = 'cc-haha-sidebar-project-organization'
+const PROJECT_SORT_STORAGE_KEY = 'cc-haha-sidebar-project-sort'
 const PROJECT_GROUP_VISIBLE_COUNT = 6
 const PROJECT_GROUP_SCROLL_COUNT = 12
+
+type SidebarProjectOrganization = 'project' | 'recentProject' | 'time'
+type SidebarProjectSortBy = 'createdAt' | 'updatedAt'
+type SidebarHeaderMenuType = 'main' | 'organize' | 'sort' | 'create'
 
 type ProjectGroup = {
   key: string
@@ -60,6 +66,8 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [projectContextMenu, setProjectContextMenu] = useState<{ key: string; x: number; y: number } | null>(null)
+  const [projectHeaderMenu, setProjectHeaderMenu] = useState<{ type: SidebarHeaderMenuType; x: number; y: number } | null>(null)
+  const [projectHeaderSubmenu, setProjectHeaderSubmenu] = useState<{ type: 'organize' | 'sort'; x: number; y: number } | null>(null)
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null)
   const [pendingBatchDeleteSessionIds, setPendingBatchDeleteSessionIds] = useState<string[] | null>(null)
   const [isBatchDeleting, setIsBatchDeleting] = useState(false)
@@ -71,6 +79,8 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
   const [projectOrder, setProjectOrder] = useState<string[]>(() => readStoredProjectOrder())
   const [pinnedProjectKeys, setPinnedProjectKeys] = useState<Set<string>>(() => readStoredProjectPins())
   const [hiddenProjectKeys, setHiddenProjectKeys] = useState<Set<string>>(() => readStoredProjectHidden())
+  const [projectOrganization, setProjectOrganizationState] = useState<SidebarProjectOrganization>(() => readStoredProjectOrganization())
+  const [projectSortBy, setProjectSortByState] = useState<SidebarProjectSortBy>(() => readStoredProjectSortBy())
   const [draggingProjectKey, setDraggingProjectKey] = useState<string | null>(null)
   const [projectDropTarget, setProjectDropTarget] = useState<{ key: string; position: 'before' | 'after' } | null>(null)
   const suppressProjectClickRef = useRef<string | null>(null)
@@ -84,14 +94,16 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
   }, [sidebarOpen])
 
   useEffect(() => {
-    if (!contextMenu && !projectContextMenu) return
+    if (!contextMenu && !projectContextMenu && !projectHeaderMenu && !projectHeaderSubmenu) return
     const close = () => {
       setContextMenu(null)
       setProjectContextMenu(null)
+      setProjectHeaderMenu(null)
+      setProjectHeaderSubmenu(null)
     }
     document.addEventListener('click', close)
     return () => document.removeEventListener('click', close)
-  }, [contextMenu, projectContextMenu])
+  }, [contextMenu, projectContextMenu, projectHeaderMenu, projectHeaderSubmenu])
 
   const filteredSessions = useMemo(() => {
     let result = sessions
@@ -105,10 +117,10 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
     return result
   }, [sessions, selectedProjects, searchQuery])
 
-  const projectGroups = useMemo(() => groupByProject(filteredSessions), [filteredSessions])
+  const projectGroups = useMemo(() => groupByProject(filteredSessions, projectSortBy), [filteredSessions, projectSortBy])
   const orderedProjectGroups = useMemo(
-    () => applyProjectOrder(projectGroups, projectOrder, pinnedProjectKeys),
-    [projectGroups, projectOrder, pinnedProjectKeys],
+    () => applyProjectOrder(projectGroups, projectOrder, pinnedProjectKeys, projectOrganization, projectSortBy),
+    [projectGroups, projectOrder, pinnedProjectKeys, projectOrganization, projectSortBy],
   )
   const visibleProjectGroups = useMemo(() => {
     if (hiddenProjectKeys.size === 0) return orderedProjectGroups
@@ -138,6 +150,8 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
     setProjectOrder(preferences.projectOrder)
     setPinnedProjectKeys(new Set(preferences.pinnedProjects))
     setHiddenProjectKeys(new Set(preferences.hiddenProjects))
+    setProjectOrganizationState(preferences.projectOrganization)
+    setProjectSortByState(preferences.projectSortBy)
   }, [])
 
   const persistSidebarProjectPreferences = useCallback((preferences: SidebarProjectPreferences) => {
@@ -231,9 +245,9 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
       dropPosition,
     )
     setProjectOrder(nextOrder)
-    persistSidebarProjectPreferences(buildSidebarProjectPreferences(nextOrder, pinnedProjectKeys, hiddenProjectKeys))
+    persistSidebarProjectPreferences(buildSidebarProjectPreferences(nextOrder, pinnedProjectKeys, hiddenProjectKeys, projectOrganization, projectSortBy))
     clearProjectDragState()
-  }, [clearProjectDragState, draggingProjectKey, hiddenProjectKeys, orderedProjectGroups, persistSidebarProjectPreferences, pinnedProjectKeys, projectDropTarget])
+  }, [clearProjectDragState, draggingProjectKey, hiddenProjectKeys, orderedProjectGroups, persistSidebarProjectPreferences, pinnedProjectKeys, projectDropTarget, projectOrganization, projectSortBy])
 
   const createSessionForWorkDir = useCallback(async (workDir?: string) => {
     try {
@@ -249,6 +263,89 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
     }
   }, [addToast, closeMobileDrawer, t])
 
+  const openProjectHeaderMenu = useCallback((event: React.MouseEvent, type: SidebarHeaderMenuType) => {
+    event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const width = type === 'create' ? 250 : 270
+    setProjectContextMenu(null)
+    setContextMenu(null)
+    setProjectHeaderSubmenu(null)
+    setProjectHeaderMenu({
+      type,
+      x: Math.max(10, Math.min(rect.right - width, window.innerWidth - width - 10)),
+      y: rect.bottom + 8,
+    })
+  }, [])
+
+  const openProjectHeaderSubmenu = useCallback((event: React.MouseEvent, type: 'organize' | 'sort') => {
+    event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const width = type === 'sort' ? 230 : 260
+    setProjectHeaderSubmenu({
+      type,
+      x: Math.max(10, Math.min(rect.right + 8, window.innerWidth - width - 10)),
+      y: Math.max(10, Math.min(rect.top - 8, window.innerHeight - 170)),
+    })
+  }, [])
+
+  const updateProjectOrganization = useCallback((organization: SidebarProjectOrganization) => {
+    setProjectHeaderMenu(null)
+    setProjectHeaderSubmenu(null)
+    setProjectOrganizationState(organization)
+    const nextOrder = organization === 'project' || organization === 'time' ? [] : projectOrder
+    if (nextOrder !== projectOrder) setProjectOrder(nextOrder)
+    persistSidebarProjectPreferences(buildSidebarProjectPreferences(
+      nextOrder,
+      pinnedProjectKeys,
+      hiddenProjectKeys,
+      organization,
+      projectSortBy,
+    ))
+  }, [hiddenProjectKeys, persistSidebarProjectPreferences, pinnedProjectKeys, projectOrder, projectSortBy])
+
+  const updateProjectSortBy = useCallback((sortBy: SidebarProjectSortBy) => {
+    setProjectHeaderMenu(null)
+    setProjectHeaderSubmenu(null)
+    setProjectSortByState(sortBy)
+    const nextOrder: string[] = []
+    setProjectOrder(nextOrder)
+    persistSidebarProjectPreferences(buildSidebarProjectPreferences(
+      nextOrder,
+      pinnedProjectKeys,
+      hiddenProjectKeys,
+      projectOrganization,
+      sortBy,
+    ))
+  }, [hiddenProjectKeys, persistSidebarProjectPreferences, pinnedProjectKeys, projectOrganization])
+
+  const createSessionFromExistingFolder = useCallback(async () => {
+    setProjectHeaderMenu(null)
+    setProjectHeaderSubmenu(null)
+    if (!isTauri) {
+      addToast({
+        type: 'error',
+        message: t('sidebar.chooseProjectFolderUnavailable'),
+      })
+      return
+    }
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: t('sidebar.useExistingFolder'),
+      })
+      if (typeof selected === 'string' && selected.trim()) {
+        await createSessionForWorkDir(selected)
+      }
+    } catch (error) {
+      addToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : t('sidebar.sessionListFailed'),
+      })
+    }
+  }, [addToast, createSessionForWorkDir, t])
+
   const togglePinnedProject = useCallback((projectKey: string) => {
     setProjectContextMenu(null)
     setPinnedProjectKeys((current) => {
@@ -258,10 +355,10 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
       } else {
         next.add(projectKey)
       }
-      persistSidebarProjectPreferences(buildSidebarProjectPreferences(projectOrder, next, hiddenProjectKeys))
+      persistSidebarProjectPreferences(buildSidebarProjectPreferences(projectOrder, next, hiddenProjectKeys, projectOrganization, projectSortBy))
       return next
     })
-  }, [hiddenProjectKeys, persistSidebarProjectPreferences, projectOrder])
+  }, [hiddenProjectKeys, persistSidebarProjectPreferences, projectOrder, projectOrganization, projectSortBy])
 
   const toggleHiddenProject = useCallback((project: ProjectGroup) => {
     const wasHidden = hiddenProjectKeys.has(project.key)
@@ -273,7 +370,7 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
       } else {
         next.add(project.key)
       }
-      persistSidebarProjectPreferences(buildSidebarProjectPreferences(projectOrder, pinnedProjectKeys, next))
+      persistSidebarProjectPreferences(buildSidebarProjectPreferences(projectOrder, pinnedProjectKeys, next, projectOrganization, projectSortBy))
       return next
     })
     if (!wasHidden) {
@@ -282,7 +379,7 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
         message: t('sidebar.projectHidden', { project: project.title }),
       })
     }
-  }, [addToast, hiddenProjectKeys, persistSidebarProjectPreferences, pinnedProjectKeys, projectOrder, t])
+  }, [addToast, hiddenProjectKeys, persistSidebarProjectPreferences, pinnedProjectKeys, projectOrder, projectOrganization, projectSortBy, t])
 
   const openProjectInFinder = useCallback(async (project: ProjectGroup) => {
     setProjectContextMenu(null)
@@ -346,6 +443,12 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
     if (ids.length === 0) return
     setPendingBatchDeleteSessionIds([...new Set(ids)])
   }, [])
+
+  const requestArchiveAllVisibleSessions = useCallback(() => {
+    setProjectHeaderMenu(null)
+    setProjectHeaderSubmenu(null)
+    requestBatchDelete(filteredSessionIds)
+  }, [filteredSessionIds, requestBatchDelete])
 
   const confirmBatchDelete = useCallback(async () => {
     const ids = pendingBatchDeleteSessionIds ?? []
@@ -684,9 +787,13 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
                 </div>
               )}
               {visibleProjectGroups.length > 0 && (
-                <div className="px-1.5 pb-2 pt-1 text-[12px] font-semibold tracking-normal text-[var(--color-text-primary)]">
-                  {t('sidebar.projects')}
-                </div>
+                <ProjectHeaderActions
+                  title={t('sidebar.projects')}
+                  menuLabel={t('sidebar.projectMenu')}
+                  createLabel={t('sidebar.newProject')}
+                  onOpenMenu={(event) => openProjectHeaderMenu(event, 'main')}
+                  onOpenCreate={(event) => openProjectHeaderMenu(event, 'create')}
+                />
               )}
               {visibleProjectGroups.map((project) => {
                 const projectCollapsed = collapsedProjectKeys.has(project.key)
@@ -987,6 +1094,40 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
         )
       })()}
 
+      {projectHeaderMenu && (
+        <ProjectHeaderMenu
+          type={projectHeaderMenu.type}
+          x={projectHeaderMenu.x}
+          y={projectHeaderMenu.y}
+          organization={projectOrganization}
+          sortBy={projectSortBy}
+          onArchiveAll={requestArchiveAllVisibleSessions}
+          onOpenSubmenu={openProjectHeaderSubmenu}
+          onSetOrganization={updateProjectOrganization}
+          onSetSortBy={updateProjectSortBy}
+          onCreateBlank={() => void createSessionForWorkDir()}
+          onUseExistingFolder={() => void createSessionFromExistingFolder()}
+          t={t}
+        />
+      )}
+
+      {projectHeaderSubmenu && (
+        <ProjectHeaderMenu
+          type={projectHeaderSubmenu.type}
+          x={projectHeaderSubmenu.x}
+          y={projectHeaderSubmenu.y}
+          organization={projectOrganization}
+          sortBy={projectSortBy}
+          onArchiveAll={requestArchiveAllVisibleSessions}
+          onOpenSubmenu={openProjectHeaderSubmenu}
+          onSetOrganization={updateProjectOrganization}
+          onSetSortBy={updateProjectSortBy}
+          onCreateBlank={() => void createSessionForWorkDir()}
+          onUseExistingFolder={() => void createSessionFromExistingFolder()}
+          t={t}
+        />
+      )}
+
       <ConfirmDialog
         open={pendingDeleteSessionId !== null}
         onClose={() => setPendingDeleteSessionId(null)}
@@ -1091,7 +1232,186 @@ function isDocumentVisible(): boolean {
   return typeof document === 'undefined' || document.visibilityState !== 'hidden'
 }
 
-function groupByProject(sessions: SessionListItem[]): ProjectGroup[] {
+function ProjectHeaderActions({
+  title,
+  menuLabel,
+  createLabel,
+  onOpenMenu,
+  onOpenCreate,
+}: {
+  title: string
+  menuLabel: string
+  createLabel: string
+  onOpenMenu: (event: React.MouseEvent) => void
+  onOpenCreate: (event: React.MouseEvent) => void
+}) {
+  return (
+    <div
+      data-testid="sidebar-projects-header"
+      className="group/sidebar-projects flex items-center justify-between px-1.5 pb-2 pt-1"
+    >
+      <div className="text-[12px] font-semibold tracking-normal text-[var(--color-text-primary)]">
+        {title}
+      </div>
+      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/sidebar-projects:opacity-100 focus-within:opacity-100">
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          className="flex h-8 w-8 items-center justify-center rounded-xl text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-sidebar-item-hover)] hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]"
+          aria-label={menuLabel}
+          title={menuLabel}
+        >
+          <MoreHorizontal className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={onOpenCreate}
+          className="flex h-8 w-8 items-center justify-center rounded-xl text-[var(--color-text-tertiary)] transition-colors hover:bg-[var(--color-sidebar-item-hover)] hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]"
+          aria-label={createLabel}
+          title={createLabel}
+        >
+          <FolderPlus className="h-[18px] w-[18px]" strokeWidth={1.9} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ProjectHeaderMenu({
+  type,
+  x,
+  y,
+  organization,
+  sortBy,
+  onArchiveAll,
+  onOpenSubmenu,
+  onSetOrganization,
+  onSetSortBy,
+  onCreateBlank,
+  onUseExistingFolder,
+  t,
+}: {
+  type: SidebarHeaderMenuType
+  x: number
+  y: number
+  organization: SidebarProjectOrganization
+  sortBy: SidebarProjectSortBy
+  onArchiveAll: () => void
+  onOpenSubmenu: (event: React.MouseEvent, type: 'organize' | 'sort') => void
+  onSetOrganization: (organization: SidebarProjectOrganization) => void
+  onSetSortBy: (sortBy: SidebarProjectSortBy) => void
+  onCreateBlank: () => void
+  onUseExistingFolder: () => void
+  t: ReturnType<typeof useTranslation>
+}) {
+  const width = type === 'sort' ? 230 : type === 'create' ? 250 : 270
+  const style: React.CSSProperties = { left: x, top: y, width, boxShadow: 'var(--shadow-dropdown)' }
+  const className = 'fixed z-50 overflow-hidden rounded-[18px] border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] py-2 shadow-[var(--shadow-dropdown)]'
+
+  if (type === 'create') {
+    return (
+      <div role="menu" className={className} style={style} onClick={(event) => event.stopPropagation()}>
+        <HeaderMenuItem icon={<SquarePen size={18} aria-hidden="true" />} onClick={onCreateBlank}>
+          {t('sidebar.newBlankProject')}
+        </HeaderMenuItem>
+        <HeaderMenuItem icon={<FolderOpen size={18} aria-hidden="true" />} onClick={onUseExistingFolder}>
+          {t('sidebar.useExistingFolder')}
+        </HeaderMenuItem>
+      </div>
+    )
+  }
+
+  if (type === 'organize') {
+    return (
+      <div role="menu" className={className} style={style} onClick={(event) => event.stopPropagation()}>
+        <HeaderMenuItem icon={<Folder size={18} aria-hidden="true" />} checked={organization === 'project'} onClick={() => onSetOrganization('project')}>
+          {t('sidebar.organizeByProject')}
+        </HeaderMenuItem>
+        <HeaderMenuItem icon={<FolderOpen size={18} aria-hidden="true" />} checked={organization === 'recentProject'} onClick={() => onSetOrganization('recentProject')}>
+          {t('sidebar.organizeByRecentProject')}
+        </HeaderMenuItem>
+        <HeaderMenuItem icon={<Clock size={18} aria-hidden="true" />} checked={organization === 'time'} onClick={() => onSetOrganization('time')}>
+          {t('sidebar.organizeByTime')}
+        </HeaderMenuItem>
+      </div>
+    )
+  }
+
+  if (type === 'sort') {
+    return (
+      <div role="menu" className={className} style={style} onClick={(event) => event.stopPropagation()}>
+        <HeaderMenuItem icon={<Clock size={18} aria-hidden="true" />} checked={sortBy === 'createdAt'} onClick={() => onSetSortBy('createdAt')}>
+          {t('sidebar.sortByCreatedAt')}
+        </HeaderMenuItem>
+        <HeaderMenuItem icon={<RefreshCw size={18} aria-hidden="true" />} checked={sortBy === 'updatedAt'} onClick={() => onSetSortBy('updatedAt')}>
+          {t('sidebar.sortByUpdatedAt')}
+        </HeaderMenuItem>
+      </div>
+    )
+  }
+
+  return (
+    <div role="menu" className={className} style={style} onClick={(event) => event.stopPropagation()}>
+      <HeaderMenuItem icon={<Archive size={18} aria-hidden="true" />} onClick={onArchiveAll}>
+        {t('sidebar.archiveAllChats')}
+      </HeaderMenuItem>
+      <div className="mx-4 my-1.5 border-t border-[var(--color-border)]" />
+      <HeaderMenuItem
+        icon={<Folder size={18} aria-hidden="true" />}
+        trailing
+        onMouseEnter={(event) => onOpenSubmenu(event, 'organize')}
+        onClick={(event) => onOpenSubmenu(event, 'organize')}
+      >
+        {t('sidebar.organizeSidebar')}
+      </HeaderMenuItem>
+      <HeaderMenuItem
+        icon={<Clock size={18} aria-hidden="true" />}
+        trailing
+        onMouseEnter={(event) => onOpenSubmenu(event, 'sort')}
+        onClick={(event) => onOpenSubmenu(event, 'sort')}
+      >
+        {t('sidebar.sortCondition')}
+      </HeaderMenuItem>
+    </div>
+  )
+}
+
+function HeaderMenuItem({
+  icon,
+  children,
+  onClick,
+  onMouseEnter,
+  checked = false,
+  trailing = false,
+}: {
+  icon: React.ReactNode
+  children: React.ReactNode
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
+  onMouseEnter?: (event: React.MouseEvent<HTMLButtonElement>) => void
+  checked?: boolean
+  trailing?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-semibold text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:bg-[var(--color-surface-hover)]"
+    >
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--color-text-secondary)]">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {checked && <Check className="h-[17px] w-[17px] text-[var(--color-text-secondary)]" strokeWidth={2} aria-hidden="true" />}
+      {trailing && !checked && (
+        <ChevronDown className="-rotate-90 h-[17px] w-[17px] text-[var(--color-text-tertiary)]" strokeWidth={2} aria-hidden="true" />
+      )}
+    </button>
+  )
+}
+
+function groupByProject(sessions: SessionListItem[], sortBy: SidebarProjectSortBy): ProjectGroup[] {
   const groupsByKey = new Map<string, SessionListItem[]>()
   for (const session of sessions) {
     const key = getSessionProjectKey(session)
@@ -1101,7 +1421,7 @@ function groupByProject(sessions: SessionListItem[]): ProjectGroup[] {
   }
 
   const groups = [...groupsByKey.entries()].map(([key, items]) => {
-    const sortedSessions = [...items].sort(compareSessionsByModifiedAt)
+    const sortedSessions = [...items].sort((a, b) => compareSessionsByTimestamp(a, b, sortBy))
     const newest = sortedSessions[0]
     const projectRoot = newest?.projectRoot || newest?.workDir || key
     return {
@@ -1113,25 +1433,28 @@ function groupByProject(sessions: SessionListItem[]): ProjectGroup[] {
     }
   })
 
-  return groups.sort((a, b) => compareSessionsByModifiedAt(a.sessions[0], b.sessions[0]))
+  return groups.sort((a, b) => compareSessionsByTimestamp(a.sessions[0], b.sessions[0], sortBy))
 }
 
 function applyProjectOrder(
   groups: ProjectGroup[],
   projectOrder: string[],
   pinnedProjectKeys: Set<string>,
+  organization: SidebarProjectOrganization,
+  sortBy: SidebarProjectSortBy,
 ): ProjectGroup[] {
   const orderIndex = new Map(projectOrder.map((key, index) => [key, index]))
   return [...groups].sort((a, b) => {
     const aPinned = pinnedProjectKeys.has(a.key)
     const bPinned = pinnedProjectKeys.has(b.key)
     if (aPinned !== bPinned) return aPinned ? -1 : 1
+    if (organization === 'project') return a.title.localeCompare(b.title)
     const aIndex = orderIndex.get(a.key)
     const bIndex = orderIndex.get(b.key)
     if (aIndex !== undefined && bIndex !== undefined) return aIndex - bIndex
     if (aIndex !== undefined) return -1
     if (bIndex !== undefined) return 1
-    return compareSessionsByModifiedAt(a.sessions[0], b.sessions[0])
+    return compareSessionsByTimestamp(a.sessions[0], b.sessions[0], sortBy)
   })
 }
 
@@ -1214,15 +1537,47 @@ function writeStoredProjectHidden(projectKeys: Set<string>): void {
   }
 }
 
+function readStoredProjectOrganization(): SidebarProjectOrganization {
+  if (typeof localStorage === 'undefined') return 'recentProject'
+  return normalizeProjectOrganization(localStorage.getItem(PROJECT_ORGANIZATION_STORAGE_KEY))
+}
+
+function writeStoredProjectOrganization(organization: SidebarProjectOrganization): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(PROJECT_ORGANIZATION_STORAGE_KEY, organization)
+  } catch {
+    // Sidebar organization is a UI preference; ignore storage failures.
+  }
+}
+
+function readStoredProjectSortBy(): SidebarProjectSortBy {
+  if (typeof localStorage === 'undefined') return 'updatedAt'
+  return normalizeProjectSortBy(localStorage.getItem(PROJECT_SORT_STORAGE_KEY))
+}
+
+function writeStoredProjectSortBy(sortBy: SidebarProjectSortBy): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(PROJECT_SORT_STORAGE_KEY, sortBy)
+  } catch {
+    // Sidebar sorting is a UI preference; ignore storage failures.
+  }
+}
+
 function buildSidebarProjectPreferences(
   projectOrder: string[],
   pinnedProjectKeys: Set<string>,
   hiddenProjectKeys: Set<string>,
+  projectOrganization: SidebarProjectOrganization,
+  projectSortBy: SidebarProjectSortBy,
 ): SidebarProjectPreferences {
   return normalizeSidebarProjectPreferences({
     projectOrder,
     pinnedProjects: [...pinnedProjectKeys],
     hiddenProjects: [...hiddenProjectKeys],
+    projectOrganization,
+    projectSortBy,
   })
 }
 
@@ -1231,6 +1586,8 @@ function readCachedSidebarProjectPreferences(): SidebarProjectPreferences {
     projectOrder: readStoredProjectOrder(),
     pinnedProjects: [...readStoredProjectPins()],
     hiddenProjects: [...readStoredProjectHidden()],
+    projectOrganization: readStoredProjectOrganization(),
+    projectSortBy: readStoredProjectSortBy(),
   }
 }
 
@@ -1239,6 +1596,8 @@ function writeCachedSidebarProjectPreferences(preferences: SidebarProjectPrefere
   writeStoredProjectOrder(normalized.projectOrder)
   writeStoredProjectPins(new Set(normalized.pinnedProjects))
   writeStoredProjectHidden(new Set(normalized.hiddenProjects))
+  writeStoredProjectOrganization(normalized.projectOrganization)
+  writeStoredProjectSortBy(normalized.projectSortBy)
 }
 
 function normalizeSidebarProjectPreferences(preferences: Partial<SidebarProjectPreferences> | undefined): SidebarProjectPreferences {
@@ -1246,6 +1605,8 @@ function normalizeSidebarProjectPreferences(preferences: Partial<SidebarProjectP
     projectOrder: normalizeProjectKeyList(preferences?.projectOrder),
     pinnedProjects: normalizeProjectKeyList(preferences?.pinnedProjects),
     hiddenProjects: normalizeProjectKeyList(preferences?.hiddenProjects),
+    projectOrganization: normalizeProjectOrganization(preferences?.projectOrganization),
+    projectSortBy: normalizeProjectSortBy(preferences?.projectSortBy),
   }
 }
 
@@ -1267,6 +1628,16 @@ function hasSidebarProjectPreferences(preferences: SidebarProjectPreferences): b
   return preferences.projectOrder.length > 0
     || preferences.pinnedProjects.length > 0
     || preferences.hiddenProjects.length > 0
+    || preferences.projectOrganization !== 'recentProject'
+    || preferences.projectSortBy !== 'updatedAt'
+}
+
+function normalizeProjectOrganization(value: unknown): SidebarProjectOrganization {
+  return value === 'project' || value === 'recentProject' || value === 'time' ? value : 'recentProject'
+}
+
+function normalizeProjectSortBy(value: unknown): SidebarProjectSortBy {
+  return value === 'createdAt' || value === 'updatedAt' ? value : 'updatedAt'
 }
 
 function getVisibleProjectSessions(
@@ -1287,11 +1658,18 @@ function getSessionProjectKey(session: SessionListItem): string {
   return session.projectRoot || session.workDir || session.projectPath || 'unknown'
 }
 
-function compareSessionsByModifiedAt(
+function compareSessionsByTimestamp(
   a: SessionListItem | undefined,
   b: SessionListItem | undefined,
+  sortBy: SidebarProjectSortBy,
 ): number {
-  return new Date(b?.modifiedAt ?? 0).getTime() - new Date(a?.modifiedAt ?? 0).getTime()
+  return getSessionTimestamp(b, sortBy) - getSessionTimestamp(a, sortBy)
+}
+
+function getSessionTimestamp(session: SessionListItem | undefined, sortBy: SidebarProjectSortBy): number {
+  const value = sortBy === 'createdAt' ? session?.createdAt : session?.modifiedAt
+  const timestamp = new Date(value ?? 0).getTime()
+  return Number.isFinite(timestamp) ? timestamp : 0
 }
 
 function projectTitle(pathLike: string | null | undefined): string {

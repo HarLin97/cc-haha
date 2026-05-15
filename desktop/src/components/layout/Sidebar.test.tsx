@@ -39,6 +39,19 @@ vi.mock('../../i18n', () => ({
       'sidebar.sessionListFailed': 'Session list failed',
       'sidebar.refreshSessions': 'Refresh sessions',
       'sidebar.projects': 'Projects',
+      'sidebar.projectMenu': 'Project menu',
+      'sidebar.newProject': 'New project',
+      'sidebar.archiveAllChats': 'Archive all chats',
+      'sidebar.organizeSidebar': 'Organize sidebar',
+      'sidebar.sortCondition': 'Sort condition',
+      'sidebar.organizeByProject': 'By project',
+      'sidebar.organizeByRecentProject': 'Recent projects',
+      'sidebar.organizeByTime': 'By time',
+      'sidebar.sortByCreatedAt': 'Created time',
+      'sidebar.sortByUpdatedAt': 'Updated time',
+      'sidebar.newBlankProject': 'New blank project',
+      'sidebar.useExistingFolder': 'Use existing folder',
+      'sidebar.chooseProjectFolderUnavailable': 'Folder selection is only available in the desktop app.',
       'sidebar.projectActions': 'Project actions for {project}',
       'sidebar.pinProject': 'Pin Project',
       'sidebar.unpinProject': 'Unpin Project',
@@ -100,6 +113,8 @@ import type { SessionListItem } from '../../types/session'
 const PROJECT_ORDER_STORAGE_KEY = 'cc-haha-sidebar-project-order'
 const PROJECT_PINNED_STORAGE_KEY = 'cc-haha-sidebar-pinned-projects'
 const PROJECT_HIDDEN_STORAGE_KEY = 'cc-haha-sidebar-hidden-projects'
+const PROJECT_ORGANIZATION_STORAGE_KEY = 'cc-haha-sidebar-project-organization'
+const PROJECT_SORT_STORAGE_KEY = 'cc-haha-sidebar-project-sort'
 
 function makeSession(
   id: string,
@@ -170,6 +185,8 @@ describe('Sidebar', () => {
           projectOrder: [],
           pinnedProjects: [],
           hiddenProjects: [],
+          projectOrganization: 'recentProject',
+          projectSortBy: 'updatedAt',
         },
       },
     })
@@ -179,6 +196,8 @@ describe('Sidebar', () => {
     window.localStorage.removeItem(PROJECT_ORDER_STORAGE_KEY)
     window.localStorage.removeItem(PROJECT_PINNED_STORAGE_KEY)
     window.localStorage.removeItem(PROJECT_HIDDEN_STORAGE_KEY)
+    window.localStorage.removeItem(PROJECT_ORGANIZATION_STORAGE_KEY)
+    window.localStorage.removeItem(PROJECT_SORT_STORAGE_KEY)
 
     useTabStore.setState({ tabs: [], activeTabId: null })
     useSessionStore.setState({
@@ -212,6 +231,8 @@ describe('Sidebar', () => {
     window.localStorage.removeItem(PROJECT_ORDER_STORAGE_KEY)
     window.localStorage.removeItem(PROJECT_PINNED_STORAGE_KEY)
     window.localStorage.removeItem(PROJECT_HIDDEN_STORAGE_KEY)
+    window.localStorage.removeItem(PROJECT_ORGANIZATION_STORAGE_KEY)
+    window.localStorage.removeItem(PROJECT_SORT_STORAGE_KEY)
   })
 
   it('opens a new tab when creating a session from the sidebar', async () => {
@@ -392,6 +413,82 @@ describe('Sidebar', () => {
     })
   })
 
+  it('shows project header menus and starts a blank project session', async () => {
+    createSession.mockResolvedValue('session-blank-project')
+    useSessionStore.setState({
+      sessions: [
+        makeSession('alpha-1', 'Alpha Session', '/workspace/alpha', new Date().toISOString()),
+      ],
+    })
+
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-projects-header')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }))
+    expect(screen.getByRole('menuitem', { name: 'New blank project' })).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'New blank project' }))
+    })
+
+    await waitFor(() => {
+      expect(createSession).toHaveBeenCalledWith(undefined)
+      expect(connectToSession).toHaveBeenCalledWith('session-blank-project')
+    })
+  })
+
+  it('persists project header sort preferences through desktop UI settings', async () => {
+    useSessionStore.setState({
+      sessions: [
+        makeSession('alpha-1', 'Alpha Session', '/workspace/alpha', '2026-03-01T00:00:00.000Z'),
+        {
+          ...makeSession('beta-1', 'Beta Session', '/workspace/beta', '2026-02-01T00:00:00.000Z'),
+          createdAt: '2026-04-01T00:00:00.000Z',
+        },
+      ],
+    })
+
+    render(<Sidebar />)
+
+    expect(projectGroupNames().slice(0, 2)).toEqual(['alpha', 'beta'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project menu' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Sort condition' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Created time' }))
+
+    await waitFor(() => {
+      expect(desktopUiPreferencesApiMock.updateSidebarPreferences).toHaveBeenCalledWith({
+        projectOrder: [],
+        pinnedProjects: [],
+        hiddenProjects: [],
+        projectOrganization: 'recentProject',
+        projectSortBy: 'createdAt',
+      })
+      expect(projectGroupNames().slice(0, 2)).toEqual(['beta', 'alpha'])
+    })
+    expect(window.localStorage.getItem(PROJECT_SORT_STORAGE_KEY)).toBe('createdAt')
+  })
+
+  it('uses the project header menu to request archiving all visible sessions', () => {
+    const now = new Date().toISOString()
+    useSessionStore.setState({
+      sessions: [
+        makeSession('alpha-1', 'Alpha Session', '/workspace/alpha', now),
+        makeSession('beta-1', 'Beta Session', '/workspace/beta', now),
+      ],
+    })
+
+    render(<Sidebar />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project menu' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive all chats' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('Delete 2 sessions? This cannot be undone.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Alpha Session')).toBeInTheDocument()
+    expect(within(dialog).getByText('Beta Session')).toBeInTheDocument()
+  })
+
   it('keeps project row actions hidden until project hover or focus', () => {
     useSessionStore.setState({
       sessions: [
@@ -512,6 +609,8 @@ describe('Sidebar', () => {
           projectOrder: ['/workspace/beta', '/workspace/alpha'],
           pinnedProjects: ['/workspace/beta'],
           hiddenProjects: ['/workspace/alpha'],
+          projectOrganization: 'recentProject',
+          projectSortBy: 'updatedAt',
         },
       },
     })
@@ -546,6 +645,8 @@ describe('Sidebar', () => {
           projectOrder: [],
           pinnedProjects: [],
           hiddenProjects: [],
+          projectOrganization: 'recentProject',
+          projectSortBy: 'updatedAt',
         },
       },
     })
@@ -564,6 +665,8 @@ describe('Sidebar', () => {
         projectOrder: [],
         pinnedProjects: [],
         hiddenProjects: ['/workspace/beta'],
+        projectOrganization: 'recentProject',
+        projectSortBy: 'updatedAt',
       })
     })
     expect(screen.queryByText('beta')).not.toBeInTheDocument()

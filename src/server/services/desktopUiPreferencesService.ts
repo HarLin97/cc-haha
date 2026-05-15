@@ -13,6 +13,8 @@ export type SidebarProjectPreferences = {
   projectOrder: string[]
   pinnedProjects: string[]
   hiddenProjects: string[]
+  projectOrganization: 'project' | 'recentProject' | 'time'
+  projectSortBy: 'createdAt' | 'updatedAt'
 }
 
 export type DesktopUiPreferences = {
@@ -30,6 +32,8 @@ const DEFAULT_SIDEBAR_PROJECT_PREFERENCES: SidebarProjectPreferences = {
   projectOrder: [],
   pinnedProjects: [],
   hiddenProjects: [],
+  projectOrganization: 'recentProject',
+  projectSortBy: 'updatedAt',
 }
 
 function defaultPreferences(): DesktopUiPreferences {
@@ -64,7 +68,17 @@ export function normalizeSidebarProjectPreferences(value: unknown): SidebarProje
     projectOrder: normalizeStringArray(record.projectOrder),
     pinnedProjects: normalizeStringArray(record.pinnedProjects),
     hiddenProjects: normalizeStringArray(record.hiddenProjects),
+    projectOrganization: normalizeProjectOrganization(record.projectOrganization),
+    projectSortBy: normalizeProjectSortBy(record.projectSortBy),
   }
+}
+
+function normalizeProjectOrganization(value: unknown): SidebarProjectPreferences['projectOrganization'] {
+  return value === 'project' || value === 'recentProject' || value === 'time' ? value : 'recentProject'
+}
+
+function normalizeProjectSortBy(value: unknown): SidebarProjectPreferences['projectSortBy'] {
+  return value === 'createdAt' || value === 'updatedAt' ? value : 'updatedAt'
 }
 
 function normalizeDesktopUiPreferences(value: unknown): DesktopUiPreferences | null {

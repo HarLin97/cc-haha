@@ -4,6 +4,8 @@ export type SidebarProjectPreferences = {
   projectOrder: string[]
   pinnedProjects: string[]
   hiddenProjects: string[]
+  projectOrganization: 'project' | 'recentProject' | 'time'
+  projectSortBy: 'createdAt' | 'updatedAt'
 }
 
 export type DesktopUiPreferences = {
