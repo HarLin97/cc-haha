@@ -224,51 +224,48 @@ function GoalStatusPanel({
       data-testid="active-goal-panel"
       className={
         compact
-          ? 'border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2'
-          : 'mx-auto w-full max-w-[920px] border-b border-[var(--color-border)] px-8 py-2'
+          ? 'border-b border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] px-4 py-2'
+          : 'mx-auto w-full max-w-[900px] px-8 py-2.5'
       }
     >
-      <div className="relative overflow-hidden rounded-[8px] border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-        <div className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--color-success)]" aria-hidden="true" />
-        <div className="flex min-w-0 items-center gap-3 pl-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-[var(--color-success)]/20 bg-[var(--color-success)]/8 text-[var(--color-success)]">
-            <Target size={17} strokeWidth={2.2} aria-hidden="true" />
+      <div className="flex min-w-0 items-center gap-3 rounded-lg border border-[var(--color-goal-border)] bg-[var(--color-goal-surface)] px-3 py-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-goal-border)] bg-[var(--color-goal-icon-bg)] text-[var(--color-goal-accent)]">
+          <Target size={17} strokeWidth={2.2} aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-[12px] font-semibold text-[var(--color-text-primary)]">
+              {t('chat.activeGoal.title')}
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-goal-border)] bg-[var(--color-goal-chip-bg)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--color-goal-accent)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-goal-accent)]" aria-hidden="true" />
+              {stateLabel}
+            </span>
+            {goal.objective && (
+              <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                {goal.objective}
+              </span>
+            )}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="shrink-0 text-[11px] font-semibold uppercase tracking-normal text-[var(--color-text-secondary)]">
-                {t('chat.activeGoal.title')}
-              </span>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-[var(--color-success)]/20 bg-[var(--color-success)]/7 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-success)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
-                {stateLabel}
-              </span>
-              {goal.objective && (
-                <span className="truncate text-[13px] font-semibold text-[var(--color-text-primary)]">
-                  {goal.objective}
+          {(goal.budget || goal.continuations || goal.elapsed) && (
+            <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+              {goal.budget && (
+                <span className="rounded-[var(--radius-sm)] border border-[var(--color-goal-chip-border)] bg-[var(--color-goal-chip-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
+                  {t('chat.activeGoal.budget', { value: goal.budget })}
+                </span>
+              )}
+              {goal.continuations && (
+                <span className="rounded-[var(--radius-sm)] border border-[var(--color-goal-chip-border)] bg-[var(--color-goal-chip-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
+                  {t('chat.activeGoal.continuations', { value: goal.continuations })}
+                </span>
+              )}
+              {goal.elapsed && (
+                <span className="rounded-[var(--radius-sm)] border border-[var(--color-goal-chip-border)] bg-[var(--color-goal-chip-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
+                  {t('chat.activeGoal.elapsed', { value: goal.elapsed })}
                 </span>
               )}
             </div>
-            {(goal.budget || goal.continuations || goal.elapsed) && (
-              <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
-                {goal.budget && (
-                  <span className="rounded-[6px] bg-[var(--color-surface-container-high)] px-2 py-1 text-[11px] leading-none text-[var(--color-text-tertiary)]">
-                    {t('chat.activeGoal.budget', { value: goal.budget })}
-                  </span>
-                )}
-                {goal.continuations && (
-                  <span className="rounded-[6px] bg-[var(--color-surface-container-high)] px-2 py-1 text-[11px] leading-none text-[var(--color-text-tertiary)]">
-                    {t('chat.activeGoal.continuations', { value: goal.continuations })}
-                  </span>
-                )}
-                {goal.elapsed && (
-                  <span className="rounded-[6px] bg-[var(--color-surface-container-high)] px-2 py-1 text-[11px] leading-none text-[var(--color-text-tertiary)]">
-                    {t('chat.activeGoal.elapsed', { value: goal.elapsed })}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>

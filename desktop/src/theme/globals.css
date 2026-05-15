@@ -370,6 +370,12 @@
   --color-memory-surface: #F6FAF8;
   --color-memory-border: #BCCDC8;
   --color-memory-icon-bg: #F3F8F7;
+  --color-goal-accent: var(--color-memory-accent);
+  --color-goal-surface: var(--color-memory-surface);
+  --color-goal-border: var(--color-memory-border);
+  --color-goal-icon-bg: var(--color-memory-icon-bg);
+  --color-goal-chip-bg: var(--color-surface);
+  --color-goal-chip-border: var(--color-border);
   --color-model-option-selected-bg: var(--color-primary-fixed);
   --color-model-option-selected-border: rgba(143, 72, 47, 0.2);
   --color-activity-heat-0: var(--color-surface-container);
@@ -571,6 +577,12 @@
   --color-memory-surface: #F3F8F7;
   --color-memory-border: #AECBC9;
   --color-memory-icon-bg: #EDF7F6;
+  --color-goal-accent: var(--color-memory-accent);
+  --color-goal-surface: var(--color-memory-surface);
+  --color-goal-border: var(--color-memory-border);
+  --color-goal-icon-bg: var(--color-memory-icon-bg);
+  --color-goal-chip-bg: var(--color-surface);
+  --color-goal-chip-border: var(--color-border);
   --color-model-option-selected-bg: #FFF0EA;
   --color-model-option-selected-border: rgba(143, 72, 47, 0.2);
   --color-activity-heat-0: #EEF2F6;
@@ -749,6 +761,12 @@
   --color-memory-surface: #1D2423;
   --color-memory-border: #334743;
   --color-memory-icon-bg: #22302E;
+  --color-goal-accent: var(--color-memory-accent);
+  --color-goal-surface: var(--color-memory-surface);
+  --color-goal-border: var(--color-memory-border);
+  --color-goal-icon-bg: var(--color-memory-icon-bg);
+  --color-goal-chip-bg: var(--color-surface-container-low);
+  --color-goal-chip-border: var(--color-border);
   --color-model-option-selected-bg: rgba(255, 181, 159, 0.13);
   --color-model-option-selected-border: rgba(255, 181, 159, 0.34);
   --color-activity-heat-0: #242322;
