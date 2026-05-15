@@ -257,13 +257,10 @@ function goalFromLocalCommandOutput(
   now: number,
 ): ThreadGoal | null {
   const trimmed = output.trim()
-  if (
-    trimmed === 'Goal cleared.' ||
-    trimmed === 'No active goal.' ||
-    trimmed === 'No goal to resume.'
-  ) {
+  if (trimmed === 'Goal cleared.') {
     return null
   }
+  if (trimmed === 'No active goal.' || trimmed === 'No goal to resume.') return current
   if (trimmed === 'Goal marked complete.') {
     return current ? { ...current, status: 'complete', updatedAt: now } : null
   }
