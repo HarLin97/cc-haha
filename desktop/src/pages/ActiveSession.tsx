@@ -218,6 +218,7 @@ function GoalStatusPanel({
       : isRunning && goal.status !== 'complete'
         ? t('chat.activeGoal.running')
         : t('chat.activeGoal.active')
+  const hasMeta = Boolean(goal.budget || goal.continuations || goal.elapsed)
 
   return (
     <div
@@ -225,48 +226,49 @@ function GoalStatusPanel({
       className={
         compact
           ? 'border-b border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] px-4 py-2'
-          : 'mx-auto w-full max-w-[900px] px-8 py-2.5'
+          : 'mx-auto w-full max-w-[960px] px-6 py-2.5'
       }
     >
-      <div className="flex min-w-0 items-center gap-3 rounded-lg border border-[var(--color-goal-border)] bg-[var(--color-goal-surface)] px-3 py-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-goal-border)] bg-[var(--color-goal-icon-bg)] text-[var(--color-goal-accent)]">
-          <Target size={17} strokeWidth={2.2} aria-hidden="true" />
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-[var(--color-memory-border)] bg-[var(--color-memory-surface)] px-3 py-2">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--color-memory-accent)]">
+          <Target size={15} strokeWidth={2.25} aria-hidden="true" />
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-[12px] font-semibold text-[var(--color-text-primary)]">
-              {t('chat.activeGoal.title')}
-            </span>
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-goal-border)] bg-[var(--color-goal-chip-bg)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--color-goal-accent)]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-goal-accent)]" aria-hidden="true" />
-              {stateLabel}
-            </span>
-            {goal.objective && (
-              <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
-                {goal.objective}
+        <span className="shrink-0 text-[13px] font-medium text-[var(--color-text-primary)]">
+          {t('chat.activeGoal.title')}
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 text-[12px] text-[var(--color-text-tertiary)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-memory-accent)]" aria-hidden="true" />
+          {stateLabel}
+        </span>
+        {goal.objective && (
+          <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--color-text-primary)]">
+            {goal.objective}
+          </span>
+        )}
+        {hasMeta && (
+          <div className="hidden shrink-0 items-center gap-1.5 md:flex">
+            {goal.budget && (
+              <span className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
+                {t('chat.activeGoal.budget', { value: goal.budget })}
+              </span>
+            )}
+            {goal.continuations && (
+              <span className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
+                {t('chat.activeGoal.continuations', { value: goal.continuations })}
+              </span>
+            )}
+            {goal.elapsed && (
+              <span className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
+                {t('chat.activeGoal.elapsed', { value: goal.elapsed })}
               </span>
             )}
           </div>
-          {(goal.budget || goal.continuations || goal.elapsed) && (
-            <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
-              {goal.budget && (
-                <span className="rounded-[var(--radius-sm)] border border-[var(--color-goal-chip-border)] bg-[var(--color-goal-chip-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
-                  {t('chat.activeGoal.budget', { value: goal.budget })}
-                </span>
-              )}
-              {goal.continuations && (
-                <span className="rounded-[var(--radius-sm)] border border-[var(--color-goal-chip-border)] bg-[var(--color-goal-chip-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
-                  {t('chat.activeGoal.continuations', { value: goal.continuations })}
-                </span>
-              )}
-              {goal.elapsed && (
-                <span className="rounded-[var(--radius-sm)] border border-[var(--color-goal-chip-border)] bg-[var(--color-goal-chip-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
-                  {t('chat.activeGoal.elapsed', { value: goal.elapsed })}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        )}
+        {hasMeta && goal.budget ? (
+          <span className="ml-auto shrink-0 text-[11px] font-medium text-[var(--color-text-tertiary)] md:hidden">
+            {t('chat.activeGoal.budget', { value: goal.budget })}
+          </span>
+        ) : null}
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 import { useRef, useEffect, useMemo, memo, useState, useCallback, useLayoutEffect, type ReactNode } from 'react'
-import { ArrowDown, BookMarked, Settings, Target } from 'lucide-react'
+import { ArrowDown, BookMarked, ChevronDown, ChevronRight, Settings, Target } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { sessionsApi, type SessionTurnCheckpoint } from '../../api/sessions'
 import { useChatStore } from '../../stores/chatStore'
@@ -151,6 +151,7 @@ function ChatSelectionMenu({
 
 function GoalEventCard({ message }: { message: GoalEvent }) {
   const t = useTranslation()
+  const [expanded, setExpanded] = useState(true)
   const titleKey = `chat.goalEvent.${message.action === 'status' ? 'statusTitle' : message.action}` as TranslationKey
   const title = t(titleKey) === titleKey ? t('chat.goalEvent.message') : t(titleKey)
   const metaDetails = [
@@ -160,35 +161,60 @@ function GoalEventCard({ message }: { message: GoalEvent }) {
   ].filter((detail): detail is string => detail !== null)
 
   return (
-    <div className="mb-3 flex justify-center">
-      <div className="flex w-full max-w-[680px] items-start gap-3 rounded-lg border border-[var(--color-goal-border)] bg-[var(--color-goal-surface)] px-3 py-2.5 text-left">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-goal-border)] bg-[var(--color-goal-icon-bg)] text-[var(--color-goal-accent)]">
-          <Target size={15} strokeWidth={2.25} aria-hidden="true" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</div>
-          {message.objective ? (
-            <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--color-text-secondary)]">
-              {t('chat.goalEvent.objective', { value: message.objective })}
-            </div>
-          ) : message.message ? (
-            <div className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[var(--color-text-secondary)]">
-              {message.message}
-            </div>
-          ) : null}
-          {metaDetails.length > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {metaDetails.map((detail) => (
-                <span
-                  key={detail}
-                  className="rounded-[var(--radius-sm)] border border-[var(--color-goal-chip-border)] bg-[var(--color-goal-chip-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]"
-                >
-                  {detail}
-                </span>
-              ))}
-            </div>
+    <div className="mb-2">
+      <div
+        data-testid="goal-event-card"
+        className="overflow-hidden rounded-lg border border-[var(--color-memory-border)] bg-[var(--color-memory-surface)]"
+      >
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-[var(--color-surface-hover)]/50"
+        >
+          {expanded ? (
+            <ChevronDown size={15} className="shrink-0 text-[var(--color-text-tertiary)]" aria-hidden="true" />
+          ) : (
+            <ChevronRight size={15} className="shrink-0 text-[var(--color-text-tertiary)]" aria-hidden="true" />
           )}
-        </div>
+          <Target size={15} className="shrink-0 text-[var(--color-memory-accent)]" strokeWidth={2.25} aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--color-text-primary)]">
+            {title}
+          </span>
+          {message.status ? (
+            <span className="inline-flex shrink-0 items-center gap-1 text-[12px] text-[var(--color-text-tertiary)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-memory-accent)]" aria-hidden="true" />
+              {message.status}
+            </span>
+          ) : null}
+        </button>
+
+        {expanded ? (
+          <div className="border-t border-[var(--color-border)]/55 px-3 py-2.5">
+            <div className="space-y-1.5">
+              {message.objective ? (
+                <div className="line-clamp-2 rounded-md px-2 py-1 text-[12px] leading-5 text-[var(--color-text-secondary)]">
+                  {t('chat.goalEvent.objective', { value: message.objective })}
+                </div>
+              ) : message.message ? (
+                <div className="whitespace-pre-wrap rounded-md px-2 py-1 text-[12px] leading-5 text-[var(--color-text-secondary)]">
+                  {message.message}
+                </div>
+              ) : null}
+              {metaDetails.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 px-2 pt-0.5">
+                  {metaDetails.map((detail) => (
+                    <span
+                      key={detail}
+                      className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]"
+                    >
+                      {detail}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )
