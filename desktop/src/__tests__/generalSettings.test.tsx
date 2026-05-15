@@ -268,7 +268,7 @@ describe('Settings > General tab', () => {
     expect((uiZoomHeading.compareDocumentPosition(webFetchHeading) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true)
   })
 
-  it('applies UI zoom while dragging so the slider and app zoom stay synchronized', async () => {
+  it('previews UI zoom while dragging and applies it once on release', async () => {
     render(<Settings />)
 
     fireEvent.click(screen.getByText('General'))
@@ -278,6 +278,7 @@ describe('Settings > General tab', () => {
     expect(screen.getByText('0 resets zoom to 100%.')).toBeInTheDocument()
 
     const slider = screen.getByLabelText('UI Zoom')
+    expect(slider).toHaveAttribute('step', '0.01')
 
     fireEvent.pointerDown(slider, { pointerId: 1 })
     await act(async () => {
@@ -287,8 +288,8 @@ describe('Settings > General tab', () => {
     })
 
     expect(screen.getAllByText('125%')).toHaveLength(2)
-    expect(useSettingsStore.getState().setUiZoom).toHaveBeenCalledWith(1.25)
-    expect(useSettingsStore.getState().uiZoom).toBe(1.25)
+    expect(useSettingsStore.getState().setUiZoom).not.toHaveBeenCalledWith(1.25)
+    expect(useSettingsStore.getState().uiZoom).toBe(1)
     expect(slider).toHaveValue('1.25')
     expect(slider).toHaveClass('settings-zoom-range')
     expect(slider.closest('.settings-zoom-control')).toHaveClass('is-dragging')
