@@ -70,7 +70,7 @@ describe('titleService', () => {
     }
   })
 
-  test('does not force disabled thinking for DeepSeek title generation', async () => {
+  test('sends disabled thinking for DeepSeek title generation when desktop thinking is off', async () => {
     let requestBody: Record<string, unknown> | null = null
     const server = Bun.serve({
       hostname: '127.0.0.1',
@@ -114,7 +114,7 @@ describe('titleService', () => {
       )
 
       await expect(generateTitle('请只回复 trace-ok')).resolves.toBe('Trace ok')
-      expect(requestBody?.thinking).toBeUndefined()
+      expect(requestBody?.thinking).toEqual({ type: 'disabled' })
     } finally {
       server.stop(true)
     }

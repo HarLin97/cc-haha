@@ -440,6 +440,27 @@ export class ConversationService {
     })
   }
 
+  setMaxThinkingTokens(sessionId: string, maxThinkingTokens: number | null): boolean {
+    return this.sendSdkMessage(sessionId, {
+      type: 'control_request',
+      request_id: crypto.randomUUID(),
+      request: {
+        subtype: 'set_max_thinking_tokens',
+        max_thinking_tokens: maxThinkingTokens,
+      },
+    })
+  }
+
+  setMaxThinkingTokensForActiveSessions(maxThinkingTokens: number | null): number {
+    let sent = 0
+    for (const sessionId of this.getActiveSessions()) {
+      if (this.setMaxThinkingTokens(sessionId, maxThinkingTokens)) {
+        sent += 1
+      }
+    }
+    return sent
+  }
+
   sendInterrupt(sessionId: string): boolean {
     return this.sendSdkMessage(sessionId, {
       type: 'control_request',

@@ -2,11 +2,12 @@
  * Unit tests for Settings, Models, and Status APIs
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'bun:test'
+import { describe, it, expect, beforeAll, beforeEach, afterEach, spyOn } from 'bun:test'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import { SettingsService } from '../services/settingsService.js'
+import { conversationService } from '../services/conversationService.js'
 import { handleSettingsApi } from '../api/settings.js'
 import { handleModelsApi } from '../api/models.js'
 import { handleStatusApi, resetUsage, addUsage } from '../api/status.js'
@@ -392,6 +393,28 @@ describe('Settings API', () => {
     const res2 = await handleSettingsApi(r2, u2, s2)
     const body2 = await res2.json()
     expect(body2.model).toBe('claude-opus-4-7')
+  })
+
+  it('PUT /api/settings/user should sync thinking changes to active CLI sessions', async () => {
+    const syncSpy = spyOn(conversationService, 'setMaxThinkingTokensForActiveSessions')
+      .mockImplementation(() => 0)
+
+    try {
+      const disabled = makeRequest('PUT', '/api/settings/user', {
+        alwaysThinkingEnabled: false,
+      })
+      expect((await handleSettingsApi(disabled.req, disabled.url, disabled.segments)).status).toBe(200)
+
+      const enabled = makeRequest('PUT', '/api/settings/user', {
+        alwaysThinkingEnabled: true,
+      })
+      expect((await handleSettingsApi(enabled.req, enabled.url, enabled.segments)).status).toBe(200)
+
+      expect(syncSpy).toHaveBeenNthCalledWith(1, 0)
+      expect(syncSpy).toHaveBeenNthCalledWith(2, null)
+    } finally {
+      syncSpy.mockRestore()
+    }
   })
 
   it('GET /api/settings/cli-launcher should expose bundled launcher status', async () => {
