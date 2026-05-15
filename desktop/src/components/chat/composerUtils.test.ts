@@ -18,6 +18,12 @@ describe('composerUtils', () => {
     expect(findSlashToken('/ review', 8)).toBeNull()
   })
 
+  it('keeps /goal argument completion active for one subcommand token', () => {
+    expect(findSlashToken('/goal ', 6)).toEqual({ start: 0, filter: 'goal ' })
+    expect(findSlashToken('/goal sta', 9)).toEqual({ start: 0, filter: 'goal sta' })
+    expect(findSlashToken('/goal build app', 15)).toBeNull()
+  })
+
   it('inserts a slash trigger without appending a trailing space', () => {
     expect(insertSlashTrigger('', 0)).toEqual({ value: '/', cursorPos: 1 })
     expect(insertSlashTrigger('hello', 5)).toEqual({ value: 'hello /', cursorPos: 7 })
@@ -70,10 +76,34 @@ describe('composerUtils', () => {
         {
           name: 'goal',
           description: 'Create or manage an autonomous completion goal',
-          argumentHint: '<objective>|status|pause|resume|clear|complete',
+          argumentHint: '[status|pause|resume|complete|clear|--tokens <budget>|<objective>]',
         },
       ]),
     )
+  })
+
+  it('suggests /goal subcommands after the /goal argument separator', () => {
+    expect(
+      filterSlashCommands(mergeSlashCommands([]), 'goal ').map((command) => command.name),
+    ).toEqual([
+      'goal status',
+      'goal pause',
+      'goal resume',
+      'goal complete',
+      'goal clear',
+      'goal --tokens',
+    ])
+
+    expect(
+      filterSlashCommands(mergeSlashCommands([]), 'goal s').map((command) => command.name),
+    ).toEqual(['goal status'])
+  })
+
+  it('replaces a /goal subcommand fragment with the selected subcommand', () => {
+    expect(replaceSlashCommand('/goal sta', 9, 'goal status')).toEqual({
+      value: '/goal status ',
+      cursorPos: 13,
+    })
   })
 
   it('ranks slash command name matches before broad description matches', () => {
