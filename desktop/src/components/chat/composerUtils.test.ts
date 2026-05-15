@@ -18,9 +18,9 @@ describe('composerUtils', () => {
     expect(findSlashToken('/ review', 8)).toBeNull()
   })
 
-  it('keeps /goal argument completion active for one subcommand token', () => {
-    expect(findSlashToken('/goal ', 6)).toEqual({ start: 0, filter: 'goal ' })
-    expect(findSlashToken('/goal sta', 9)).toEqual({ start: 0, filter: 'goal sta' })
+  it('closes slash completion once /goal arguments start', () => {
+    expect(findSlashToken('/goal ', 6)).toBeNull()
+    expect(findSlashToken('/goal sta', 9)).toBeNull()
     expect(findSlashToken('/goal build app', 15)).toBeNull()
   })
 
@@ -82,28 +82,22 @@ describe('composerUtils', () => {
     )
   })
 
-  it('suggests /goal subcommands after the /goal argument separator', () => {
-    expect(
-      filterSlashCommands(mergeSlashCommands([]), 'goal ').map((command) => command.name),
-    ).toEqual([
-      'goal status',
-      'goal pause',
-      'goal resume',
-      'goal complete',
-      'goal clear',
-      'goal --tokens',
-    ])
+  it('keeps /goal as a single command with argument hints instead of pseudo subcommands', () => {
+    const commands = filterSlashCommands(mergeSlashCommands([]), 'goal')
 
     expect(
-      filterSlashCommands(mergeSlashCommands([]), 'goal s').map((command) => command.name),
-    ).toEqual(['goal status'])
+      commands.map((command) => command.name),
+    ).toEqual(['goal'])
+    expect(commands[0]).toMatchObject({
+      description: 'Create or manage an autonomous completion goal',
+      argumentHint: '[status|pause|resume|complete|clear|--tokens <budget>|<objective>]',
+    })
+    expect(mergeSlashCommands([]).map((command) => command.name)).not.toContain('goal status')
+    expect(mergeSlashCommands([]).map((command) => command.name)).not.toContain('goal --tokens')
   })
 
-  it('replaces a /goal subcommand fragment with the selected subcommand', () => {
-    expect(replaceSlashCommand('/goal sta', 9, 'goal status')).toEqual({
-      value: '/goal status ',
-      cursorPos: 13,
-    })
+  it('does not replace /goal arguments as slash command fragments', () => {
+    expect(replaceSlashCommand('/goal sta', 9, 'goal status')).toBeNull()
   })
 
   it('ranks slash command name matches before broad description matches', () => {

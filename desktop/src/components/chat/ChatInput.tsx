@@ -887,12 +887,12 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
                         : 'hover:bg-[var(--color-surface-hover)]'
                     }`}
                   >
-                    <span className="flex min-w-0 max-w-[48%] shrink-0 items-baseline gap-1.5">
-                      <span className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
+                    <span className="flex min-w-0 max-w-[52%] shrink-0 items-baseline gap-1.5">
+                      <span className="shrink-0 text-sm font-semibold text-[var(--color-text-primary)]">
                         /{command.name}
                       </span>
                       {command.argumentHint ? (
-                        <span className="truncate font-mono text-[11px] text-[var(--color-text-tertiary)]">
+                        <span className="min-w-0 truncate font-mono text-[11px] text-[var(--color-text-tertiary)]">
                           {command.argumentHint}
                         </span>
                       ) : null}

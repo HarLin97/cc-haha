@@ -19,19 +19,6 @@ export const SLASH_COMMAND_ALIASES = [
   { name: 'plugins', target: 'plugin' },
 ] as const
 
-export const GOAL_SLASH_SUBCOMMANDS = [
-  { name: 'goal status', description: 'Show the current goal status' },
-  { name: 'goal pause', description: 'Pause the active goal loop' },
-  { name: 'goal resume', description: 'Resume the active goal loop' },
-  { name: 'goal complete', description: 'Mark the active goal complete' },
-  { name: 'goal clear', description: 'Clear the active goal' },
-  {
-    name: 'goal --tokens',
-    description: 'Create a goal with a token budget',
-    argumentHint: '<budget> <objective>',
-  },
-] as const
-
 export const FALLBACK_SLASH_COMMANDS = [
   ...PANEL_SLASH_COMMANDS,
   ...SETTINGS_SLASH_COMMANDS.map(({ name, description }) => ({ name, description })),
@@ -42,7 +29,6 @@ export const FALLBACK_SLASH_COMMANDS = [
     description: 'Create or manage an autonomous completion goal',
     argumentHint: '[status|pause|resume|complete|clear|--tokens <budget>|<objective>]',
   },
-  ...GOAL_SLASH_SUBCOMMANDS,
   { name: 'review', description: 'Review code changes' },
   { name: 'commit', description: 'Create a git commit' },
   { name: 'pr', description: 'Create a pull request' },
@@ -168,7 +154,7 @@ export function findSlashTrigger(value: string, cursorPos: number): SlashTrigger
 
   const filter = textBeforeCursor.slice(slashPos + 1)
   if (filter.includes('\n')) return null
-  if (/\s/.test(filter) && !/^goal\s+[^\s]*$/i.test(filter)) return null
+  if (/\s/.test(filter)) return null
 
   return { slashPos, filter }
 }

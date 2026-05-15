@@ -159,6 +159,22 @@ describe('Content-only pages render without errors', () => {
     expect(screen.queryByText('/internal-only')).not.toBeInTheDocument()
   })
 
+  it('EmptySession shows /goal as one command with argument hints, not pseudo subcommands', async () => {
+    vi.mocked(skillsApi.list).mockResolvedValueOnce({ skills: [] })
+
+    render(<EmptySession />)
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: '/goal', selectionStart: 5 },
+    })
+
+    expect(await screen.findAllByText('/goal')).toHaveLength(2)
+    expect(screen.getByText('[status|pause|resume|complete|clear|--tokens <budget>|<objective>]')).toBeInTheDocument()
+    expect(screen.getByText('Create or manage an autonomous completion goal')).toBeInTheDocument()
+    expect(screen.queryByText('/goal status')).not.toBeInTheDocument()
+    expect(screen.queryByText('/goal --tokens')).not.toBeInTheDocument()
+  })
+
   it('EmptySession renders mascot and composer', async () => {
     let container!: HTMLElement
     await act(async () => {

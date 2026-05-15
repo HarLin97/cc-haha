@@ -640,7 +640,14 @@ export function EmptySession() {
                           index === slashSelectedIndex ? 'bg-[var(--color-surface-hover)]' : 'hover:bg-[var(--color-surface-hover)]'
                         }`}
                       >
-                        <span className="shrink-0 text-sm font-semibold text-[var(--color-text-primary)]">/{command.name}</span>
+                        <span className="flex min-w-0 max-w-[52%] shrink-0 items-baseline gap-1.5">
+                          <span className="shrink-0 text-sm font-semibold text-[var(--color-text-primary)]">/{command.name}</span>
+                          {command.argumentHint ? (
+                            <span className="min-w-0 truncate font-mono text-[11px] text-[var(--color-text-tertiary)]">
+                              {command.argumentHint}
+                            </span>
+                          ) : null}
+                        </span>
                         <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-text-tertiary)]">{command.description}</span>
                       </button>
                     ))}
