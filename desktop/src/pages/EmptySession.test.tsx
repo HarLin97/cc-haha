@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import '@testing-library/jest-dom'
 
@@ -98,6 +98,7 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useTabStore } from '../stores/tabStore'
 import { useUIStore } from '../stores/uiStore'
+import { usePluginStore } from '../stores/pluginStore'
 import type { RepositoryContextResult } from '../api/sessions'
 
 function okRepositoryContext(overrides: Partial<RepositoryContextResult> = {}): RepositoryContextResult {
@@ -146,6 +147,7 @@ describe('EmptySession', () => {
   const initialTabState = useTabStore.getInitialState()
   const initialRuntimeState = useSessionRuntimeStore.getInitialState()
   const initialUiState = useUIStore.getInitialState()
+  const initialPluginState = usePluginStore.getInitialState()
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -157,6 +159,7 @@ describe('EmptySession', () => {
     useTabStore.setState(initialTabState, true)
     useSessionRuntimeStore.setState(initialRuntimeState, true)
     useUIStore.setState(initialUiState, true)
+    usePluginStore.setState(initialPluginState, true)
 
     mocks.createSession.mockResolvedValue({ sessionId: 'draft-session' })
     mocks.getRepositoryContext.mockResolvedValue(okRepositoryContext())
@@ -187,6 +190,7 @@ describe('EmptySession', () => {
     useTabStore.setState(initialTabState, true)
     useSessionRuntimeStore.setState(initialRuntimeState, true)
     useUIStore.setState(initialUiState, true)
+    usePluginStore.setState(initialPluginState, true)
   })
 
   it('uses compact composer controls on phone-sized H5 browsers', async () => {
@@ -201,6 +205,45 @@ describe('EmptySession', () => {
     expect(screen.getByRole('button', { name: 'Run' })).toHaveClass('h-11', 'w-11')
     expect(screen.getByTestId('empty-session-composer-shell')).toHaveClass('px-3')
     expect(screen.getByTestId('empty-session-composer-panel')).toHaveClass('rounded-2xl')
+  })
+
+  it('refreshes empty-session slash commands after plugin reloads', async () => {
+    mocks.listSkills
+      .mockResolvedValueOnce({ skills: [] })
+      .mockResolvedValueOnce({
+        skills: [
+          {
+            name: 'draw:render',
+            description: 'Render with the drawing plugin.',
+            userInvocable: true,
+          },
+        ],
+      })
+
+    render(<EmptySession />)
+
+    await waitFor(() => {
+      expect(mocks.listSkills).toHaveBeenCalledTimes(1)
+    })
+
+    act(() => {
+      usePluginStore.setState({
+        lastReloadSummary: {
+          enabled: 1,
+          disabled: 0,
+          skills: 1,
+          agents: 0,
+          hooks: 0,
+          mcpServers: 0,
+          lspServers: 0,
+          errors: 0,
+        },
+      })
+    })
+
+    await waitFor(() => {
+      expect(mocks.listSkills).toHaveBeenCalledTimes(2)
+    })
   })
 
   it('integrates repository launch controls into the desktop composer panel', async () => {

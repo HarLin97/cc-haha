@@ -7,9 +7,13 @@ import { clearInstalledPluginsCache } from '../../utils/plugins/installedPlugins
 import { clearPluginCache, loadAllPluginsCacheOnly } from '../../utils/plugins/pluginLoader.js'
 import { resetSettingsCache } from '../../utils/settings/settingsCache.js'
 import { handlePluginsApi } from '../api/plugins.js'
+import { conversationService } from '../services/conversationService.js'
+import { __resetWebSocketHandlerStateForTests, getSlashCommands } from '../ws/handler.js'
 
 let tmpDir: string
 let originalConfigDir: string | undefined
+let originalHasSession: typeof conversationService.hasSession
+let originalRequestControl: typeof conversationService.requestControl
 
 function makeRequest(
   method: string,
@@ -38,9 +42,15 @@ describe('Plugins API', () => {
     clearInstalledPluginsCache()
     clearPluginCache('plugins-api-test-setup')
     resetSettingsCache()
+    __resetWebSocketHandlerStateForTests()
+    originalHasSession = conversationService.hasSession.bind(conversationService)
+    originalRequestControl = conversationService.requestControl.bind(conversationService)
   })
 
   afterEach(async () => {
+    conversationService.hasSession = originalHasSession
+    conversationService.requestControl = originalRequestControl
+    __resetWebSocketHandlerStateForTests()
     clearInstalledPluginsCache()
     clearPluginCache('plugins-api-test-teardown')
     resetSettingsCache()
@@ -165,5 +175,70 @@ describe('Plugins API', () => {
     expect(typeof body.summary.enabled).toBe('number')
     expect(typeof body.summary.skills).toBe('number')
     expect(typeof body.summary.errors).toBe('number')
+  })
+
+  it('POST /api/plugins/reload hot-reloads an active CLI session and updates slash commands', async () => {
+    const controlRequests: Array<{ sessionId: string; request: Record<string, unknown> }> = []
+    conversationService.hasSession = ((sessionId: string) => sessionId === 'session-plugins') as typeof conversationService.hasSession
+    conversationService.requestControl = (async (
+      sessionId: string,
+      request: Record<string, unknown>,
+    ) => {
+      controlRequests.push({ sessionId, request })
+      return {
+        commands: [
+          {
+            name: 'draw:render',
+            description: 'Render a drawing.',
+            argumentHint: '<prompt>',
+          },
+        ],
+        agents: [{ name: 'draw-agent' }],
+        plugins: [{ name: 'draw', path: '/tmp/draw', source: 'draw@test' }],
+        mcpServers: [{ name: 'plugin:draw:server', type: 'connected' }],
+        error_count: 0,
+      }
+    }) as typeof conversationService.requestControl
+
+    const { req, url, segments } = makeRequest(
+      'POST',
+      '/api/plugins/reload?sessionId=session-plugins',
+      {},
+    )
+    const res = await handlePluginsApi(req, url, segments)
+
+    expect(res.status).toBe(200)
+    const body = await res.json() as {
+      session: {
+        applied: boolean
+        commands: number
+        agents: number
+        plugins: number
+        mcpServers: number
+        errors: number
+      }
+    }
+
+    expect(controlRequests).toEqual([
+      {
+        sessionId: 'session-plugins',
+        request: { subtype: 'reload_plugins' },
+      },
+    ])
+    expect(body.session).toEqual({
+      applied: true,
+      commands: 1,
+      agents: 1,
+      plugins: 1,
+      mcpServers: 1,
+      errors: 0,
+    })
+    expect(getSlashCommands('session-plugins')).toEqual([
+      {
+        name: 'draw:render',
+        description: 'Render a drawing.',
+        argumentHint: '<prompt>',
+      },
+    ])
   })
 })
