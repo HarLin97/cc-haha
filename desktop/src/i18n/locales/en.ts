@@ -556,8 +556,10 @@ export const en = {
   'settings.memory.refresh': 'Refresh',
   'settings.memory.projects': 'Projects',
   'settings.memory.files': 'Memory files',
+  'settings.memory.resourceManager': 'Resource manager',
   'settings.memory.editor': 'Editor',
   'settings.memory.preview': 'Preview',
+  'settings.memory.rendered': 'Rendered',
   'settings.memory.emptyProjects': 'No memory projects found.',
   'settings.memory.emptyFiles': 'No memory files found yet.',
   'settings.memory.selectFile': 'Select a memory file.',
@@ -572,9 +574,11 @@ export const en = {
   'settings.memory.revert': 'Revert',
   'settings.memory.projectSearchPlaceholder': 'Search projects by path...',
   'settings.memory.fileSearchPlaceholder': 'Search memory files...',
+  'settings.memory.resourceSearchPlaceholder': 'Search projects or memory files...',
   'settings.memory.noProjectMatches': 'No projects match this search.',
   'settings.memory.noFileMatches': 'No memory files match this search.',
   'settings.memory.clearSearch': 'Clear search',
+  'settings.memory.toggleFolder': 'Toggle {name}',
 
   // Settings > Plugins
   'settings.plugins.title': 'Installed Plugins',

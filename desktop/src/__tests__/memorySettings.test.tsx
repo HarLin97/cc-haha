@@ -110,8 +110,10 @@ describe('MemorySettings', () => {
 
     expect(await screen.findByText('Project Memory')).toBeInTheDocument()
     expect(memoryApiMock.listProjects).toHaveBeenCalledWith('/workspace/demo')
-    expect(await screen.findByText('/workspace/demo')).toBeInTheDocument()
-    expect(await screen.findByText('Project conventions.')).toBeInTheDocument()
+    expect(await screen.findAllByText('workspace/demo')).not.toHaveLength(0)
+    expect(await screen.findAllByText('MEMORY.md')).not.toHaveLength(0)
+    expect(screen.queryByText('Project conventions.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Index')).not.toBeInTheDocument()
     expect(screen.queryByPlaceholderText('MEMORY.md or notes/project.md')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /create memory file/i })).not.toBeInTheDocument()
 
@@ -135,7 +137,7 @@ describe('MemorySettings', () => {
     })
   })
 
-  it('filters projects by path so large memory lists are navigable', async () => {
+  it('filters the unified resource tree by project path', async () => {
     memoryApiMock.listProjects.mockResolvedValue({
       projects: [
         {
@@ -159,18 +161,84 @@ describe('MemorySettings', () => {
 
     render(<MemorySettings />)
 
-    expect(await screen.findByText('workspace/alpha')).toBeInTheDocument()
+    expect(await screen.findAllByText('workspace/alpha')).not.toHaveLength(0)
     expect(await screen.findByText('workspace/beta')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Search projects by path...'), {
+    fireEvent.change(screen.getByLabelText('Search projects or memory files...'), {
       target: { value: 'beta' },
     })
 
-    expect(screen.queryByText('workspace/alpha')).not.toBeInTheDocument()
-    expect(screen.getByText('workspace/beta')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /workspace\/alpha/ })).not.toBeInTheDocument()
+    expect(screen.getAllByText('workspace/beta').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle workspace/beta' }))
     await waitFor(() => {
       expect(useMemoryStore.getState().selectedProjectId).toBe('-workspace-beta')
     })
+  })
+
+  it('renders nested memory files as a collapsible resource tree', async () => {
+    memoryApiMock.listFiles.mockResolvedValue({
+      files: [
+        {
+          path: 'MEMORY.md',
+          name: 'MEMORY.md',
+          title: 'MEMORY.md',
+          bytes: 18,
+          updatedAt: '2026-05-01T00:00:00.000Z',
+          type: 'project',
+          description: 'Project conventions.',
+          isIndex: true,
+        },
+        {
+          path: 'notes/manual.md',
+          name: 'manual.md',
+          title: 'Manual',
+          bytes: 42,
+          updatedAt: '2026-05-01T00:02:00.000Z',
+          type: 'guidance',
+          description: 'Operator workflow.',
+          isIndex: false,
+        },
+        {
+          path: 'notes/archive/old.md',
+          name: 'old.md',
+          title: 'Old note',
+          bytes: 24,
+          updatedAt: '2026-05-01T00:03:00.000Z',
+          isIndex: false,
+        },
+      ],
+    })
+    memoryApiMock.readFile.mockImplementation((_projectId: string, path: string) => Promise.resolve({
+      file: {
+        path,
+        content: path === 'notes/manual.md' ? '# Manual\n' : '# Project Memory\n',
+        updatedAt: '2026-05-01T00:00:00.000Z',
+        bytes: 18,
+      },
+    }))
+
+    render(<MemorySettings />)
+
+    expect(await screen.findByRole('button', { name: 'Toggle notes' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Toggle archive' })).toBeInTheDocument()
+    expect(screen.getByText('Manual')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle notes' }))
+    expect(screen.queryByText('Manual')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Search projects or memory files...'), {
+      target: { value: 'manual' },
+    })
+
+    expect(screen.getByText('Manual')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Manual'))
+
+    await waitFor(() => {
+      expect(memoryApiMock.readFile).toHaveBeenCalledWith('-workspace-demo', 'notes/manual.md')
+    })
+    expect(await screen.findByLabelText('Editor')).toHaveValue('# Manual\n')
   })
 
   it('keeps frontmatter editable but removes it from the rendered preview', async () => {
