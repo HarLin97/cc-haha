@@ -153,8 +153,7 @@ function GoalEventCard({ message }: { message: GoalEvent }) {
   const t = useTranslation()
   const titleKey = `chat.goalEvent.${message.action === 'status' ? 'statusTitle' : message.action}` as TranslationKey
   const title = t(titleKey) === titleKey ? t('chat.goalEvent.message') : t(titleKey)
-  const details = [
-    message.objective ? t('chat.goalEvent.objective', { value: message.objective }) : null,
+  const metaDetails = [
     message.status ? t('chat.goalEvent.statusValue', { value: message.status }) : null,
     message.budget ? t('chat.goalEvent.budget', { value: message.budget }) : null,
     message.continuations ? t('chat.goalEvent.continuations', { value: message.continuations }) : null,
@@ -162,23 +161,33 @@ function GoalEventCard({ message }: { message: GoalEvent }) {
 
   return (
     <div className="mb-3 flex justify-center">
-      <div className="flex max-w-[min(680px,100%)] items-start gap-3 rounded-[8px] border border-[var(--color-success)]/25 bg-[var(--color-success-container)]/28 px-3.5 py-3 text-left shadow-sm">
-        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-[var(--color-success)]/12 text-[var(--color-success)]">
+      <div className="flex w-full max-w-[680px] items-start gap-3 rounded-lg border border-[var(--color-goal-border)] bg-[var(--color-goal-surface)] px-3 py-2.5 text-left">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-goal-border)] bg-[var(--color-goal-icon-bg)] text-[var(--color-goal-accent)]">
           <Target size={15} strokeWidth={2.25} aria-hidden="true" />
         </div>
         <div className="min-w-0">
           <div className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</div>
-          {details.length > 0 ? (
-            <div className="mt-1 space-y-0.5 text-xs leading-5 text-[var(--color-text-secondary)]">
-              {details.map((detail) => (
-                <div key={detail} className="break-words">{detail}</div>
-              ))}
+          {message.objective ? (
+            <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--color-text-secondary)]">
+              {t('chat.goalEvent.objective', { value: message.objective })}
             </div>
           ) : message.message ? (
             <div className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[var(--color-text-secondary)]">
               {message.message}
             </div>
           ) : null}
+          {metaDetails.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {metaDetails.map((detail) => (
+                <span
+                  key={detail}
+                  className="rounded-[var(--radius-sm)] border border-[var(--color-goal-chip-border)] bg-[var(--color-goal-chip-bg)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]"
+                >
+                  {detail}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
