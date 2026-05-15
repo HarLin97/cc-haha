@@ -511,7 +511,11 @@ function rememberSessionScroll(sessionId: string, element: HTMLElement) {
 }
 
 function clampScrollTop(element: HTMLElement, scrollTop: number) {
-  return Math.max(0, Math.min(scrollTop, element.scrollHeight - element.clientHeight))
+  return Math.max(0, Math.min(scrollTop, getBottomScrollTop(element)))
+}
+
+function getBottomScrollTop(element: HTMLElement) {
+  return Math.max(0, element.scrollHeight - element.clientHeight)
 }
 
 function getRenderItemKey(item: RenderItem) {
@@ -541,6 +545,7 @@ export function MessageList({ sessionId, compact = false }: MessageListProps = {
   const shouldAutoScrollRef = useRef(true)
   const isProgrammaticScrollingRef = useRef(false)
   const lastSessionIdRef = useRef<string | null | undefined>(resolvedSessionId)
+  const lastTailMessageIdBySessionRef = useRef(new Map<string, string | null>())
   const updateVirtualWindowRef = useRef<((element: HTMLElement) => void) | null>(null)
   const t = useTranslation()
   const [turnChangeCards, setTurnChangeCards] = useState<TurnChangeCardModel[]>([])
@@ -554,17 +559,39 @@ export function MessageList({ sessionId, compact = false }: MessageListProps = {
   const scrollToBottom = useCallback((behavior: ScrollBehavior) => {
     shouldAutoScrollRef.current = true
     isProgrammaticScrollingRef.current = true
-    bottomRef.current?.scrollIntoView?.({ behavior, block: 'end' })
     const container = scrollContainerRef.current
+    const targetScrollTop = container ? getBottomScrollTop(container) : null
+    if (container) {
+      container.scrollTop = targetScrollTop ?? 0
+    }
+    bottomRef.current?.scrollIntoView?.({ behavior, block: 'end' })
     if (container && resolvedSessionId) {
       sessionScrollSnapshots.set(resolvedSessionId, {
-        scrollTop: Math.max(0, container.scrollHeight - container.clientHeight),
+        scrollTop: getBottomScrollTop(container),
         wasAtBottom: true,
       })
     }
     setShowJumpToLatest(false)
     // Reset flag after the scroll event(s) from scrollIntoView have fired
     requestAnimationFrame(() => {
+      const latestContainer = scrollContainerRef.current
+      if (
+        shouldAutoScrollRef.current &&
+        latestContainer &&
+        (
+          targetScrollTop === null ||
+          latestContainer.scrollTop === targetScrollTop ||
+          isNearScrollBottom(latestContainer)
+        )
+      ) {
+        latestContainer.scrollTop = getBottomScrollTop(latestContainer)
+        if (resolvedSessionId) {
+          sessionScrollSnapshots.set(resolvedSessionId, {
+            scrollTop: getBottomScrollTop(latestContainer),
+            wasAtBottom: true,
+          })
+        }
+      }
       isProgrammaticScrollingRef.current = false
     })
   }, [resolvedSessionId])
@@ -600,6 +627,22 @@ export function MessageList({ sessionId, compact = false }: MessageListProps = {
       }
     }
   }, [resolvedSessionId, scrollToBottom])
+
+  const tailMessage = messages[messages.length - 1] ?? null
+  const tailMessageId = tailMessage?.id ?? null
+  const tailMessageType = tailMessage?.type ?? null
+
+  useEffect(() => {
+    if (!resolvedSessionId) return
+
+    const previousTailMessageId = lastTailMessageIdBySessionRef.current.get(resolvedSessionId)
+    lastTailMessageIdBySessionRef.current.set(resolvedSessionId, tailMessageId)
+    if (previousTailMessageId === undefined || previousTailMessageId === tailMessageId) return
+
+    if (tailMessageType === 'user_text' && chatState !== 'idle') {
+      scrollToBottom('smooth')
+    }
+  }, [chatState, resolvedSessionId, scrollToBottom, tailMessageId, tailMessageType])
 
   useEffect(() => {
     if (!shouldAutoScrollRef.current) {
