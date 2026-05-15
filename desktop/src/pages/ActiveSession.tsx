@@ -225,8 +225,8 @@ function GoalStatusPanel({
       data-testid="active-goal-panel"
       className={
         compact
-          ? 'border-b border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] px-4 py-2'
-          : 'mx-auto w-[calc(100%-2rem)] max-w-[860px] py-2.5'
+          ? 'mx-auto w-full max-w-[860px] px-4 py-2'
+          : 'mx-auto w-full max-w-[860px] px-8 py-2.5'
       }
     >
       <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-[var(--color-memory-border)] bg-[var(--color-memory-surface)] px-3 py-2">

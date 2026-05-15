@@ -256,22 +256,13 @@ describe('chatStore history mapping', () => {
         id: 'goal-command',
         type: 'system',
         timestamp: '2026-04-06T00:00:00.000Z',
-        content: '<command-name>/goal</command-name>\n<command-args>--tokens 2k ship the smoke test</command-args>',
+        content: '<command-name>/goal</command-name>\n<command-args>ship the smoke test</command-args>',
       },
       {
         id: 'goal-output',
         type: 'system',
         timestamp: '2026-04-06T00:00:01.000Z',
-        content: [
-          '<local-command-stdout>',
-          'Goal created.',
-          'Goal: active',
-          'Objective: ship the smoke test',
-          'Budget: 0 / 2,000 tokens',
-          'Elapsed: 0s',
-          'Continuations: 0',
-          '</local-command-stdout>',
-        ].join('\n'),
+        content: '<local-command-stdout>Goal set: ship the smoke test</local-command-stdout>',
       },
     ]
 
@@ -279,7 +270,7 @@ describe('chatStore history mapping', () => {
       {
         id: 'goal-command',
         type: 'user_text',
-        content: '/goal --tokens 2k ship the smoke test',
+        content: '/goal ship the smoke test',
       },
       {
         id: 'goal-output',
@@ -287,8 +278,6 @@ describe('chatStore history mapping', () => {
         action: 'created',
         status: 'active',
         objective: 'ship the smoke test',
-        budget: '0 / 2,000 tokens',
-        continuations: '0',
       },
     ])
   })

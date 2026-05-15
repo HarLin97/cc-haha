@@ -21,43 +21,16 @@ export type ThreadGoal = {
 }
 
 export type ParsedGoalCommand =
-  | { type: 'status' }
   | { type: 'clear' }
-  | { type: 'pause' }
-  | { type: 'resume' }
-  | { type: 'complete' }
-  | { type: 'set'; objective: string; tokenBudget?: number | null }
+  | { type: 'set'; objective: string }
 
 const goalsByThread = new Map<string, ThreadGoal>()
 
 export function parseGoalCommand(args: string): ParsedGoalCommand {
   const trimmed = args.trim()
-  if (!trimmed || trimmed === 'status') return { type: 'status' }
-  if (['clear', 'stop', 'off', 'reset', 'none', 'cancel'].includes(trimmed)) {
-    return { type: 'clear' }
-  }
-  if (trimmed === 'pause') return { type: 'pause' }
-  if (trimmed === 'resume') return { type: 'resume' }
-  if (trimmed === 'complete') return { type: 'complete' }
-
-  const parts = trimmed.split(/\s+/)
-  let tokenBudget: number | null | undefined
-  let objectiveStart = 0
-  if (parts[0] === '--tokens') {
-    const rawBudget = parts[1]
-    if (!rawBudget) {
-      throw new Error('Usage: /goal --tokens <budget> <objective>')
-    }
-    tokenBudget = parseTokenBudget(rawBudget)
-    objectiveStart = 2
-  }
-
-  const objective = parts.slice(objectiveStart).join(' ').trim()
-  if (!objective) {
-    throw new Error('Usage: /goal [--tokens <budget>] <objective>')
-  }
-
-  return { type: 'set', objective, tokenBudget }
+  if (!trimmed) throw new Error('Usage: /goal <condition> | clear')
+  if (trimmed === 'clear') return { type: 'clear' }
+  return { type: 'set', objective: trimmed }
 }
 
 export function setThreadGoal(
@@ -228,19 +201,6 @@ export function buildGoalContinuationPrompt(
   ].join('\n')
 }
 
-function parseTokenBudget(raw: string): number {
-  const match = raw.trim().match(/^(\d+(?:\.\d+)?)([kKmM])?$/)
-  if (!match) throw new Error(`Invalid token budget: ${raw}`)
-  const value = Number(match[1])
-  const suffix = match[2]?.toLowerCase()
-  const multiplier = suffix === 'm' ? 1_000_000 : suffix === 'k' ? 1_000 : 1
-  const budget = Math.floor(value * multiplier)
-  if (!Number.isFinite(budget) || budget <= 0) {
-    throw new Error(`Invalid token budget: ${raw}`)
-  }
-  return budget
-}
-
 function formatElapsed(ms: number): string {
   const seconds = Math.floor(ms / 1000)
   const minutes = Math.floor(seconds / 60)
@@ -257,12 +217,28 @@ function goalFromLocalCommandOutput(
   now: number,
 ): ThreadGoal | null {
   const trimmed = output.trim()
-  if (trimmed === 'Goal cleared.') {
+  if (trimmed === 'Goal cleared.' || trimmed.startsWith('Goal cleared:')) {
     return null
   }
   if (trimmed === 'No active goal.' || trimmed === 'No goal to resume.') return current
   if (trimmed === 'Goal marked complete.') {
     return current ? { ...current, status: 'complete', updatedAt: now } : null
+  }
+  if (trimmed.startsWith('Goal set:')) {
+    const objective = trimmed.slice('Goal set:'.length).trim()
+    if (!objective) return current
+    return {
+      goalId: randomUUID(),
+      threadId,
+      objective,
+      status: 'active',
+      tokenBudget: null,
+      tokensUsed: 0,
+      continuationCount: 0,
+      lastReason: null,
+      createdAt: now,
+      updatedAt: now,
+    }
   }
 
   const body = trimmed.startsWith('Goal created.\n') || trimmed.startsWith('Goal replaced.\n')
@@ -317,8 +293,10 @@ function looksLikeGoalStatusOutput(output: string): boolean {
   return (
     trimmed.startsWith('Goal created.\n') ||
     trimmed.startsWith('Goal replaced.\n') ||
+    trimmed.startsWith('Goal set:') ||
     trimmed.startsWith('Goal: ') ||
     trimmed === 'Goal cleared.' ||
+    trimmed.startsWith('Goal cleared:') ||
     trimmed === 'Goal marked complete.'
   )
 }

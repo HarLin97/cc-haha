@@ -1048,7 +1048,7 @@ type AssistantHistoryBlock = { type: string; text?: string; thinking?: string; n
 type UserHistoryBlock = { type: string; text?: string; tool_use_id?: string; content?: unknown; is_error?: boolean; source?: { data?: string }; mimeType?: string; media_type?: string; name?: string }
 
 const TASK_NOTIFICATION_RE = /^<task-notification>\s*[\s\S]*<\/task-notification>$/i
-const GOAL_CLEAR_ALIASES = new Set(['clear', 'stop', 'off', 'reset', 'none', 'cancel'])
+const GOAL_CLEAR_ALIASES = new Set(['clear'])
 const GOAL_EVENT_ACTIONS = new Set<GoalEventAction>([
   'created',
   'replaced',
@@ -1209,9 +1209,18 @@ function parseGoalEventFromLocalCommandOutput(
   const trimmed = output.trim()
   if (!trimmed) return null
 
-  if (trimmed === 'Goal cleared.') return { action: 'cleared', message: trimmed }
+  if (trimmed === 'Goal cleared.' || trimmed.startsWith('Goal cleared:')) return { action: 'cleared', message: trimmed }
   if (trimmed === 'Goal marked complete.') return { action: 'completed', message: trimmed }
   if (trimmed === 'No active goal.' || trimmed === 'No goal to resume.') return { action: 'message', message: trimmed }
+  if (trimmed.startsWith('Goal set:')) {
+    const objective = trimmed.slice('Goal set:'.length).trim()
+    return {
+      action: 'created',
+      status: 'active',
+      objective: objective || undefined,
+      message: trimmed,
+    }
+  }
 
   const actionPrefix = trimmed.startsWith('Goal replaced.\n')
     ? 'replaced'

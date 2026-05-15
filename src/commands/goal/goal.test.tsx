@@ -31,14 +31,11 @@ async function runGoal(args: string, context: Partial<LocalJSXCommandContext> = 
 }
 
 describe('/goal command', () => {
-  test('creates a goal and manages every subcommand in one CLI session', async () => {
+  test('sets and clears a goal in one CLI session', async () => {
     switchSession(`goal-command-${crypto.randomUUID()}` as SessionId)
 
-    const created = await runGoal('--tokens 2k ship the smoke test')
-    expect(created.result).toContain('Goal created.')
-    expect(created.result).toContain('Goal: active')
-    expect(created.result).toContain('Objective: ship the smoke test')
-    expect(created.result).toContain('Budget: 0 / 2,000 tokens')
+    const created = await runGoal('ship the smoke test')
+    expect(created.result).toBe('Goal set: ship the smoke test')
     expect(created.options).toMatchObject({
       display: 'system',
       shouldQuery: true,
@@ -47,17 +44,8 @@ describe('/goal command', () => {
       '<objective>ship the smoke test</objective>',
     )
 
-    const status = await runGoal('status')
-    expect(status.result).toContain('Goal: active')
-    expect(status.result).toContain('Objective: ship the smoke test')
-    expect(status.options).toMatchObject({
-      display: 'system',
-    })
-
     const replaced = await runGoal('ship the replacement target')
-    expect(replaced.result).toContain('Goal replaced.')
-    expect(replaced.result).toContain('Objective: ship the replacement target')
-    expect(replaced.result).toContain('Budget: 0 / unlimited tokens')
+    expect(replaced.result).toBe('Goal set: ship the replacement target')
     expect(replaced.options).toMatchObject({
       display: 'system',
       shouldQuery: true,
@@ -66,36 +54,14 @@ describe('/goal command', () => {
       '<objective>ship the replacement target</objective>',
     )
 
-    const paused = await runGoal('pause')
-    expect(paused.result).toContain('Goal: paused')
-    expect(paused.options).toMatchObject({
-      display: 'system',
-    })
-
-    const resumed = await runGoal('resume')
-    expect(resumed.result).toContain('Goal: active')
-    expect(resumed.options).toMatchObject({
-      display: 'system',
-      shouldQuery: true,
-    })
-    expect(resumed.options?.metaMessages?.[0]).toContain(
-      '<objective>ship the replacement target</objective>',
-    )
-
-    const completed = await runGoal('complete')
-    expect(completed.result).toBe('Goal marked complete.')
-    expect(completed.options).toMatchObject({
-      display: 'system',
-    })
-
     const cleared = await runGoal('clear')
-    expect(cleared.result).toBe('Goal cleared.')
+    expect(cleared.result).toBe('Goal cleared: ship the replacement target')
     expect(cleared.options).toMatchObject({
       display: 'system',
     })
 
     const empty = await runGoal('')
-    expect(empty.result).toBe('No active goal.')
+    expect(empty.result).toBe('Usage: /goal <condition> | clear')
     expect(empty.options).toMatchObject({
       display: 'system',
     })
@@ -104,9 +70,9 @@ describe('/goal command', () => {
   test('reports usage errors without querying the model', async () => {
     switchSession(`goal-command-${crypto.randomUUID()}` as SessionId)
 
-    const result = await runGoal('--tokens 2k')
+    const result = await runGoal('')
 
-    expect(result.result).toBe('Usage: /goal [--tokens <budget>] <objective>')
+    expect(result.result).toBe('Usage: /goal <condition> | clear')
     expect(result.options).toMatchObject({
       display: 'system',
     })
@@ -116,7 +82,7 @@ describe('/goal command', () => {
   test('hydrates completed goal state from persisted slash command history', async () => {
     switchSession(`goal-command-${crypto.randomUUID()}` as SessionId)
 
-    const result = await runGoal('status', {
+    const result = await runGoal('clear', {
       messages: [
         createCommandInputMessage([
           '<command-name>/goal</command-name>',
@@ -149,9 +115,6 @@ describe('/goal command', () => {
       ],
     })
 
-    expect(result.result).toContain('Goal: complete')
-    expect(result.result).toContain('Objective: ship persisted goal')
-    expect(result.result).toContain('Budget: 1,234 / 2,000 tokens')
-    expect(result.result).toContain('Continuations: 2')
+    expect(result.result).toBe('Goal cleared: ship persisted goal')
   })
 })

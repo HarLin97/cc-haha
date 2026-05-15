@@ -294,12 +294,15 @@ async function handleUserMessage(
     }
     sessionTitleState.set(sessionId, titleState)
   }
-  titleState.userMessageCount++
-  titleState.allUserMessages.push(message.content)
-  if (titleState.userMessageCount === 1) {
-    titleState.firstUserMessage = message.content
+  const titleInput = getTitleInputForUserMessage(message.content, desktopSlashCommand)
+  if (titleInput) {
+    titleState.userMessageCount++
+    titleState.allUserMessages.push(titleInput)
+    if (titleState.userMessageCount === 1) {
+      titleState.firstUserMessage = titleInput
+    }
+    triggerTitleGeneration(ws, sessionId)
   }
-  triggerTitleGeneration(ws, sessionId)
 
   // 启动 CLI 子进程（如果还没有）
   try {
@@ -1331,6 +1334,17 @@ function getDesktopSlashCommand(content: string): ReturnType<typeof parseSlashCo
   return parsed
 }
 
+function getTitleInputForUserMessage(
+  content: string,
+  command: ReturnType<typeof parseSlashCommand>,
+): string | null {
+  if (command?.commandName !== 'goal') return content
+
+  const args = command.args.trim()
+  if (!args || args === 'clear') return null
+  return args
+}
+
 export function createCurrentTurnLocalCommandForwarder(
   command: ReturnType<typeof parseSlashCommand>,
 ): (cliMsg: any) => boolean {
@@ -1340,6 +1354,16 @@ export function createCurrentTurnLocalCommandForwarder(
     if (command && isMatchingCurrentTurnLocalCommand(cliMsg, command)) {
       awaitingCurrentTurnLocalCommandOutput = true
       return true
+    }
+    if (command?.commandName === 'goal' && isLocalCommandOutputMessage(cliMsg)) {
+      const output = extractLocalCommandOutput(
+        cliMsg.content ?? cliMsg.message,
+        { allowUntagged: cliMsg.subtype === 'local_command_output' },
+      )
+      if (output && looksLikeGoalCommandOutput(output)) {
+        awaitingCurrentTurnLocalCommandOutput = false
+        return true
+      }
     }
     if (
       awaitingCurrentTurnLocalCommandOutput &&
@@ -1458,7 +1482,7 @@ function extractGoalEvent(
   const trimmed = output.trim()
   if (!trimmed) return null
 
-  if (trimmed === 'Goal cleared.') {
+  if (trimmed === 'Goal cleared.' || trimmed.startsWith('Goal cleared:')) {
     return { action: 'cleared', message: trimmed }
   }
   if (trimmed === 'Goal marked complete.') {
@@ -1466,6 +1490,16 @@ function extractGoalEvent(
   }
   if (trimmed === 'No active goal.' || trimmed === 'No goal to resume.') {
     return { action: 'message', message: trimmed }
+  }
+
+  if (trimmed.startsWith('Goal set:')) {
+    const objective = trimmed.slice('Goal set:'.length).trim()
+    return {
+      action: 'created',
+      status: 'active',
+      objective: objective || undefined,
+      message: trimmed,
+    }
   }
 
   const actionPrefix = trimmed.startsWith('Goal replaced.\n')
@@ -1499,6 +1533,21 @@ function extractGoalEvent(
     continuations: lines.continuations,
     message: trimmed,
   }
+}
+
+function looksLikeGoalCommandOutput(output: string): boolean {
+  const trimmed = output.trim()
+  return (
+    trimmed.startsWith('Goal set:') ||
+    trimmed.startsWith('Goal cleared:') ||
+    trimmed === 'Goal cleared.' ||
+    trimmed === 'Goal marked complete.' ||
+    trimmed === 'No active goal.' ||
+    trimmed === 'No goal to resume.' ||
+    trimmed.startsWith('Goal created.\n') ||
+    trimmed.startsWith('Goal replaced.\n') ||
+    trimmed.startsWith('Goal: ')
+  )
 }
 
 function resolveGoalEventAction(
