@@ -242,6 +242,34 @@ describe('ConversationService', () => {
     ])
   })
 
+  it('should send thinking token controls to active CLI sessions', () => {
+    const svc = new ConversationService() as any
+    const sent: string[] = []
+    svc.sessions.set('session-thinking-control', {
+      sdkSocket: { send: (data: string) => sent.push(data) },
+      pendingOutbound: [],
+    })
+
+    expect(svc.setMaxThinkingTokens('session-thinking-control', 0)).toBe(true)
+    expect(svc.setMaxThinkingTokens('session-thinking-control', null)).toBe(true)
+    expect(svc.setMaxThinkingTokensForActiveSessions(0)).toBe(1)
+
+    expect(sent.map((line) => JSON.parse(line).request)).toEqual([
+      {
+        subtype: 'set_max_thinking_tokens',
+        max_thinking_tokens: 0,
+      },
+      {
+        subtype: 'set_max_thinking_tokens',
+        max_thinking_tokens: null,
+      },
+      {
+        subtype: 'set_max_thinking_tokens',
+        max_thinking_tokens: 0,
+      },
+    ])
+  })
+
   it('should return false when sending interrupt to non-existent session', () => {
     const svc = new ConversationService()
     const result = svc.sendInterrupt('no-such-session')

@@ -34,3 +34,54 @@ describe('WebSocket memory events', () => {
     ])
   })
 })
+
+describe('WebSocket stream event translation', () => {
+  it('keeps DeepSeek-style thinking blocks in thinking state until text starts', () => {
+    const sessionId = `deepseek-thinking-${crypto.randomUUID()}`
+
+    expect(translateCliMessage({
+      type: 'stream_event',
+      event: { type: 'message_start' },
+    }, sessionId)).toEqual([
+      { type: 'status', state: 'thinking' },
+    ])
+
+    expect(translateCliMessage({
+      type: 'stream_event',
+      event: {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'thinking', thinking: '' },
+      },
+    }, sessionId)).toEqual([
+      { type: 'status', state: 'thinking', verb: 'Thinking' },
+    ])
+
+    expect(translateCliMessage({
+      type: 'stream_event',
+      event: {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'thinking_delta', thinking: 'Let me think' },
+      },
+    }, sessionId)).toEqual([
+      { type: 'thinking', text: 'Let me think' },
+    ])
+
+    expect(translateCliMessage({
+      type: 'stream_event',
+      event: { type: 'content_block_stop', index: 0 },
+    }, sessionId)).toEqual([])
+
+    expect(translateCliMessage({
+      type: 'stream_event',
+      event: {
+        type: 'content_block_start',
+        index: 1,
+        content_block: { type: 'text', text: '' },
+      },
+    }, sessionId)).toEqual([
+      { type: 'content_start', blockType: 'text' },
+    ])
+  })
+})

@@ -692,7 +692,7 @@ function triggerTitleGeneration(ws: ServerWebSocket<WebSocketData>, sessionId: s
  */
 type SessionStreamState = {
   hasReceivedStreamEvents: boolean
-  activeBlockTypes: Map<number, 'text' | 'tool_use'>
+  activeBlockTypes: Map<number, 'text' | 'tool_use' | 'thinking'>
   activeToolBlocks: Map<number, { toolName: string; toolUseId: string; inputJson: string }>
   /** Tool blocks whose input JSON failed to parse in content_block_stop.
    *  The assistant message carries the complete input — defer to that. */
@@ -990,7 +990,7 @@ export function translateCliMessage(cliMsg: any, sessionId: string): ServerMessa
 
       switch (event.type) {
         case 'message_start': {
-          return [{ type: 'status', state: 'streaming' }]
+          return [{ type: 'status', state: 'thinking' }]
         }
 
         case 'content_block_start': {
@@ -998,9 +998,9 @@ export function translateCliMessage(cliMsg: any, sessionId: string): ServerMessa
           if (!contentBlock) return []
 
           const index = event.index ?? 0
-          streamState.activeBlockTypes.set(index, contentBlock.type === 'tool_use' ? 'tool_use' : 'text')
 
           if (contentBlock.type === 'tool_use') {
+            streamState.activeBlockTypes.set(index, 'tool_use')
             // Track tool info so content_block_stop can emit complete data
             streamState.activeToolBlocks.set(index, {
               toolName: contentBlock.name || '',
@@ -1018,6 +1018,13 @@ export function translateCliMessage(cliMsg: any, sessionId: string): ServerMessa
                   : undefined,
             }]
           }
+
+          if (contentBlock.type === 'thinking' || contentBlock.type === 'redacted_thinking') {
+            streamState.activeBlockTypes.set(index, 'thinking')
+            return [{ type: 'status', state: 'thinking', verb: 'Thinking' }]
+          }
+
+          streamState.activeBlockTypes.set(index, 'text')
           return [{ type: 'content_start', blockType: 'text' }]
         }
 

@@ -220,6 +220,91 @@ describe('settingsStore desktop notification persistence', () => {
   })
 })
 
+describe('settingsStore thinking persistence', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+    window.localStorage.clear()
+  })
+
+  it('persists both enabled and disabled thinking states explicitly', async () => {
+    const updateUser = vi.fn().mockResolvedValue({})
+
+    vi.doMock('../api/settings', () => ({
+      settingsApi: {
+        getUser: vi.fn(),
+        updateUser,
+        getPermissionMode: vi.fn(),
+        setPermissionMode: vi.fn(),
+        getCliLauncherStatus: vi.fn(),
+      },
+    }))
+    vi.doMock('../api/models', () => ({
+      modelsApi: {
+        list: vi.fn(),
+        getCurrent: vi.fn(),
+        setCurrent: vi.fn(),
+        getEffort: vi.fn(),
+        setEffort: vi.fn(),
+      },
+    }))
+    vi.doMock('../api/h5Access', () => ({
+      h5AccessApi: {
+        get: vi.fn(),
+        enable: vi.fn(),
+        disable: vi.fn(),
+        regenerate: vi.fn(),
+        update: vi.fn(),
+      },
+    }))
+
+    const { useSettingsStore } = await import('./settingsStore')
+
+    await useSettingsStore.getState().setThinkingEnabled(false)
+    await useSettingsStore.getState().setThinkingEnabled(true)
+
+    expect(updateUser).toHaveBeenNthCalledWith(1, { alwaysThinkingEnabled: false })
+    expect(updateUser).toHaveBeenNthCalledWith(2, { alwaysThinkingEnabled: true })
+    expect(useSettingsStore.getState().thinkingEnabled).toBe(true)
+  })
+
+  it('rolls back the thinking toggle when persistence fails', async () => {
+    vi.doMock('../api/settings', () => ({
+      settingsApi: {
+        getUser: vi.fn(),
+        updateUser: vi.fn().mockRejectedValue(new Error('save failed')),
+        getPermissionMode: vi.fn(),
+        setPermissionMode: vi.fn(),
+        getCliLauncherStatus: vi.fn(),
+      },
+    }))
+    vi.doMock('../api/models', () => ({
+      modelsApi: {
+        list: vi.fn(),
+        getCurrent: vi.fn(),
+        setCurrent: vi.fn(),
+        getEffort: vi.fn(),
+        setEffort: vi.fn(),
+      },
+    }))
+    vi.doMock('../api/h5Access', () => ({
+      h5AccessApi: {
+        get: vi.fn(),
+        enable: vi.fn(),
+        disable: vi.fn(),
+        regenerate: vi.fn(),
+        update: vi.fn(),
+      },
+    }))
+
+    const { useSettingsStore } = await import('./settingsStore')
+
+    await useSettingsStore.getState().setThinkingEnabled(false)
+
+    expect(useSettingsStore.getState().thinkingEnabled).toBe(true)
+  })
+})
+
 describe('settingsStore theme persistence', () => {
   beforeEach(() => {
     vi.resetModules()

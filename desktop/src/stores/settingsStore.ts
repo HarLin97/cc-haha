@@ -178,7 +178,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const prev = get().thinkingEnabled
     set({ thinkingEnabled: enabled })
     try {
-      await settingsApi.updateUser({ alwaysThinkingEnabled: enabled ? undefined : false })
+      await settingsApi.updateUser({ alwaysThinkingEnabled: enabled })
     } catch {
       set({ thinkingEnabled: prev })
     }
