@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../api/client'
 import { skillsApi } from '../api/skills'
 import { useTranslation } from '../i18n'
@@ -18,6 +18,11 @@ import { LocalSlashCommandPanel, type LocalSlashCommandName } from '../component
 import { useMobileViewport } from '../hooks/useMobileViewport'
 import { isTauriRuntime } from '../lib/desktopRuntime'
 import {
+  filesToComposerAttachments,
+  selectNativeFileAttachments,
+  type ComposerAttachment,
+} from '../lib/composerAttachments'
+import {
   FALLBACK_SLASH_COMMANDS,
   findSlashToken,
   insertSlashTrigger,
@@ -28,15 +33,7 @@ import {
 import type { AttachmentRef } from '../types/chat'
 import type { SlashCommandOption } from '../components/chat/composerUtils'
 
-type Attachment = {
-  id: string
-  name: string
-  type: 'image' | 'file'
-  path?: string
-  mimeType?: string
-  previewUrl?: string
-  data?: string
-}
+type Attachment = ComposerAttachment
 
 type Translate = ReturnType<typeof useTranslation>
 
@@ -441,30 +438,42 @@ export function EmptySession() {
     if (!hasImage) return
   }
 
+  const appendFiles = useCallback((files: FileList | File[]) => {
+    void filesToComposerAttachments(files)
+      .then((nextAttachments) => {
+        if (nextAttachments.length === 0) return
+        setAttachments((prev) => [...prev, ...nextAttachments])
+      })
+      .catch((error) => {
+        console.warn('[attachments] Failed to read selected files', error)
+      })
+  }, [])
+
+  const openAttachmentPicker = useCallback(() => {
+    if (!isTauriRuntime()) {
+      fileInputRef.current?.click()
+      setPlusMenuOpen(false)
+      return
+    }
+
+    void selectNativeFileAttachments()
+      .then((nativeAttachments) => {
+        if (nativeAttachments) {
+          if (nativeAttachments.length > 0) {
+            setAttachments((prev) => [...prev, ...nativeAttachments])
+          }
+          return
+        }
+        fileInputRef.current?.click()
+      })
+      .finally(() => setPlusMenuOpen(false))
+  }, [])
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (!files) return
 
-    Array.from(files).forEach((file) => {
-      const id = `att-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const isImage = file.type.startsWith('image/')
-      const reader = new FileReader()
-      reader.onload = () => {
-        setAttachments((prev) => [
-          ...prev,
-          {
-            id,
-            name: file.name,
-            type: isImage ? 'image' : 'file',
-            mimeType: file.type || undefined,
-            previewUrl: isImage ? (reader.result as string) : undefined,
-            data: reader.result as string,
-          },
-        ])
-      }
-      reader.readAsDataURL(file)
-    })
-
+    appendFiles(files)
     event.target.value = ''
   }
 
@@ -472,8 +481,7 @@ export function EmptySession() {
     event.preventDefault()
     const files = event.dataTransfer.files
     if (files.length > 0) {
-      const fakeEvent = { target: { files } } as React.ChangeEvent<HTMLInputElement>
-      handleFileSelect(fakeEvent)
+      appendFiles(files)
     }
   }
 
@@ -683,10 +691,7 @@ export function EmptySession() {
                         isMobileComposer ? 'w-[min(240px,calc(100vw-32px))]' : 'w-[240px]'
                       }`}>
                         <button
-                          onClick={() => {
-                            fileInputRef.current?.click()
-                            setPlusMenuOpen(false)
-                          }}
+                          onClick={openAttachmentPicker}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
                         >
                           <span className="material-symbols-outlined text-[18px] text-[var(--color-text-secondary)]">attach_file</span>

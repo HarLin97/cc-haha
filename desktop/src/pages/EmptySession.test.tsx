@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   wsOnMessage: vi.fn(),
   wsSend: vi.fn(),
   wsDisconnect: vi.fn(),
+  dialogOpen: vi.fn(),
   isMobile: false,
   isTauriRuntime: false,
 }))
@@ -59,6 +60,10 @@ vi.mock('../hooks/useMobileViewport', () => ({
 
 vi.mock('../lib/desktopRuntime', () => ({
   isTauriRuntime: () => mocks.isTauriRuntime,
+}))
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  open: mocks.dialogOpen,
 }))
 
 vi.mock('../components/shared/DirectoryPicker', () => ({
@@ -299,6 +304,49 @@ describe('EmptySession', () => {
       ],
       ['draft-session', { type: 'prewarm_session' }],
     ])
+  })
+
+  it('uses native desktop file paths for draft attachments', async () => {
+    mocks.isTauriRuntime = true
+    mocks.dialogOpen.mockResolvedValueOnce([
+      'C:\\Users\\Nanmi\\Desktop\\huge-a.log',
+      '/Users/nanmi/tmp/huge-b.zip',
+    ])
+
+    render(<EmptySession />)
+
+    fireEvent.click(screen.getByLabelText('Open composer tools'))
+    fireEvent.click(screen.getByText('Add files or photos'))
+
+    expect(await screen.findByText('huge-a.log')).toBeInTheDocument()
+    expect(await screen.findByText('huge-b.zip')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'check these files', selectionStart: 'check these files'.length },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }))
+
+    await waitFor(() => {
+      expect(mocks.createSession).toHaveBeenCalledWith({})
+    })
+    expect(mocks.wsSend).toHaveBeenCalledWith('draft-session', {
+      type: 'user_message',
+      content: 'check these files',
+      attachments: [
+        expect.objectContaining({
+          type: 'file',
+          name: 'huge-a.log',
+          path: 'C:\\Users\\Nanmi\\Desktop\\huge-a.log',
+          data: undefined,
+        }),
+        expect.objectContaining({
+          type: 'file',
+          name: 'huge-b.zip',
+          path: '/Users/nanmi/tmp/huge-b.zip',
+          data: undefined,
+        }),
+      ],
+    })
   })
 
   it('starts in a selected non-Git project without showing a repository warning', async () => {

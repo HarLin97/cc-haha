@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   search: vi.fn(),
   browse: vi.fn(),
   wsSend: vi.fn(),
+  dialogOpen: vi.fn(),
 }))
 
 vi.mock('../../api/sessions', () => ({
@@ -49,6 +50,10 @@ vi.mock('../../api/websocket', () => ({
     clearHandlers: vi.fn(),
     send: mocks.wsSend,
   },
+}))
+
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  open: mocks.dialogOpen,
 }))
 
 vi.mock('../../hooks/useMobileViewport', () => ({
@@ -113,6 +118,7 @@ describe('ChatInput file mentions', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
     viewportMocks.isMobile = false
     useSettingsStore.setState({ locale: 'en' })
     useChatStore.setState(initialChatState, true)
@@ -609,6 +615,53 @@ describe('ChatInput file mentions', () => {
       content: '讲一下这个目录。',
       modelContent: '@"/repo/backend" 讲一下这个目录。',
       attachments: [{ name: 'backend/', path: '/repo/backend' }],
+    })
+  })
+
+  it('uses native desktop file paths instead of inlining selected files', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    })
+    mocks.dialogOpen.mockResolvedValueOnce([
+      '/Users/nanmi/tmp/large-a.log',
+      'C:\\Users\\Nanmi\\Desktop\\large-b.zip',
+    ])
+
+    render(<ChatInput compact />)
+
+    fireEvent.click(screen.getByLabelText('Open composer tools'))
+    fireEvent.click(screen.getByText('Add files or photos'))
+
+    expect(await screen.findByText('large-a.log')).toBeInTheDocument()
+    expect(await screen.findByText('large-b.zip')).toBeInTheDocument()
+
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    fireEvent.change(input, {
+      target: {
+        value: 'analyze these',
+        selectionStart: 'analyze these'.length,
+      },
+    })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(mocks.wsSend).toHaveBeenCalledWith(sessionId, {
+      type: 'user_message',
+      content: 'analyze these',
+      attachments: [
+        expect.objectContaining({
+          type: 'file',
+          name: 'large-a.log',
+          path: '/Users/nanmi/tmp/large-a.log',
+          data: undefined,
+        }),
+        expect.objectContaining({
+          type: 'file',
+          name: 'large-b.zip',
+          path: 'C:\\Users\\Nanmi\\Desktop\\large-b.zip',
+          data: undefined,
+        }),
+      ],
     })
   })
 

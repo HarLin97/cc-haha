@@ -31,23 +31,15 @@ import {
 } from './composerUtils'
 import { useMobileViewport } from '../../hooks/useMobileViewport'
 import { isTauriRuntime } from '../../lib/desktopRuntime'
+import {
+  filesToComposerAttachments,
+  selectNativeFileAttachments,
+  type ComposerAttachment,
+} from '../../lib/composerAttachments'
 
 type GitInfo = SessionGitInfo
 
-type Attachment = {
-  id: string
-  name: string
-  type: 'image' | 'file'
-  path?: string
-  mimeType?: string
-  previewUrl?: string
-  data?: string
-  isDirectory?: boolean
-  lineStart?: number
-  lineEnd?: number
-  note?: string
-  quote?: string
-}
+type Attachment = ComposerAttachment
 
 type ComposerDraft = {
   input: string
@@ -710,31 +702,43 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
     if (!hasImage) return
   }
 
+  const appendFiles = useCallback((files: FileList | File[]) => {
+    void filesToComposerAttachments(files)
+      .then((nextAttachments) => {
+        if (nextAttachments.length === 0) return
+        setComposerAttachments((prev) => [...prev, ...nextAttachments])
+      })
+      .catch((error) => {
+        console.warn('[attachments] Failed to read selected files', error)
+      })
+  }, [setComposerAttachments])
+
+  const openAttachmentPicker = useCallback(() => {
+    if (!isTauriRuntime()) {
+      fileInputRef.current?.click()
+      setPlusMenuOpen(false)
+      return
+    }
+
+    void selectNativeFileAttachments()
+      .then((nativeAttachments) => {
+        if (nativeAttachments) {
+          if (nativeAttachments.length > 0) {
+            setComposerAttachments((prev) => [...prev, ...nativeAttachments])
+          }
+          return
+        }
+        fileInputRef.current?.click()
+      })
+      .finally(() => setPlusMenuOpen(false))
+  }, [setComposerAttachments])
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (isMemberSession) return
     const files = event.target.files
     if (!files) return
 
-    Array.from(files).forEach((file) => {
-      const id = `att-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const isImage = file.type.startsWith('image/')
-      const reader = new FileReader()
-      reader.onload = () => {
-        setComposerAttachments((prev) => [
-          ...prev,
-          {
-            id,
-            name: file.name,
-            type: isImage ? 'image' : 'file',
-            mimeType: file.type || undefined,
-            previewUrl: isImage ? (reader.result as string) : undefined,
-            data: reader.result as string,
-          },
-        ])
-      }
-      reader.readAsDataURL(file)
-    })
-
+    appendFiles(files)
     event.target.value = ''
   }
 
@@ -743,8 +747,7 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
     if (isMemberSession) return
     const files = event.dataTransfer.files
     if (files.length > 0) {
-      const fakeEvent = { target: { files } } as React.ChangeEvent<HTMLInputElement>
-      handleFileSelect(fakeEvent)
+      appendFiles(files)
     }
   }
 
@@ -983,10 +986,7 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
                     {plusMenuOpen && (
                       <div className={`absolute bottom-full left-0 z-50 mb-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] py-1 shadow-[var(--shadow-dropdown)] ${isMobileComposer ? 'w-[min(240px,calc(100vw-32px))]' : 'w-[240px]'}`}>
                         <button
-                          onClick={() => {
-                            fileInputRef.current?.click()
-                            setPlusMenuOpen(false)
-                          }}
+                          onClick={openAttachmentPicker}
                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--color-surface-hover)]"
                         >
                           <span className="material-symbols-outlined text-[18px] text-[var(--color-text-secondary)]">attach_file</span>
