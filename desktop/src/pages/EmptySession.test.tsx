@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   wsSend: vi.fn(),
   wsDisconnect: vi.fn(),
   dialogOpen: vi.fn(),
+  webviewDragHandlers: [] as Array<(event: { payload: unknown }) => void>,
+  webviewUnlisten: vi.fn(),
   isMobile: false,
   isTauriRuntime: false,
 }))
@@ -64,6 +66,15 @@ vi.mock('../lib/desktopRuntime', () => ({
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: mocks.dialogOpen,
+}))
+
+vi.mock('@tauri-apps/api/webview', () => ({
+  getCurrentWebview: () => ({
+    onDragDropEvent: vi.fn(async (handler: (event: { payload: unknown }) => void) => {
+      mocks.webviewDragHandlers.push(handler)
+      return mocks.webviewUnlisten
+    }),
+  }),
 }))
 
 vi.mock('../components/shared/DirectoryPicker', () => ({
@@ -151,6 +162,7 @@ describe('EmptySession', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.webviewDragHandlers.length = 0
     mocks.isMobile = false
     mocks.isTauriRuntime = false
     useSettingsStore.setState({ locale: 'en', activeProviderName: null })
@@ -425,6 +437,52 @@ describe('EmptySession', () => {
           type: 'file',
           name: 'huge-b.zip',
           path: '/Users/nanmi/tmp/huge-b.zip',
+          data: undefined,
+        }),
+      ],
+    })
+  })
+
+  it('shows a drop affordance and sends dropped desktop files as path attachments', async () => {
+    mocks.isTauriRuntime = true
+    const droppedFile = new File(['large file'], 'ignored-name.log', { type: 'text/plain' })
+    Object.defineProperty(droppedFile, 'path', {
+      configurable: true,
+      value: '/Users/nanmi/drop/session-context.log',
+    })
+    const dataTransfer = {
+      types: ['Files'],
+      files: [droppedFile],
+      dropEffect: '',
+    }
+
+    render(<EmptySession />)
+
+    const panel = screen.getByTestId('empty-session-composer-panel')
+    fireEvent.dragEnter(panel, { dataTransfer })
+    expect(screen.getByTestId('empty-session-drop-overlay')).toBeInTheDocument()
+
+    fireEvent.drop(panel, { dataTransfer })
+
+    expect(await screen.findByText('session-context.log')).toBeInTheDocument()
+    expect(screen.queryByTestId('empty-session-drop-overlay')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'use this context', selectionStart: 'use this context'.length },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }))
+
+    await waitFor(() => {
+      expect(mocks.createSession).toHaveBeenCalledWith({})
+    })
+    expect(mocks.wsSend).toHaveBeenCalledWith('draft-session', {
+      type: 'user_message',
+      content: 'use this context',
+      attachments: [
+        expect.objectContaining({
+          type: 'file',
+          name: 'session-context.log',
+          path: '/Users/nanmi/drop/session-context.log',
           data: undefined,
         }),
       ],

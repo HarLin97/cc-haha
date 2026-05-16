@@ -33,6 +33,21 @@ export function pathToComposerAttachment(filePath: string): ComposerAttachment {
   }
 }
 
+export function pathsToComposerAttachments(filePaths: string[]): ComposerAttachment[] {
+  return filePaths
+    .filter((filePath) => typeof filePath === 'string' && filePath.length > 0)
+    .map(pathToComposerAttachment)
+}
+
+export function dataTransferHasFiles(dataTransfer: DataTransfer): boolean {
+  const types = Array.from(dataTransfer.types ?? [])
+  return types.includes('Files') || dataTransfer.files.length > 0
+}
+
+export async function dataTransferToComposerAttachments(dataTransfer: DataTransfer): Promise<ComposerAttachment[]> {
+  return filesToComposerAttachments(dataTransfer.files)
+}
+
 export async function selectNativeFileAttachments(): Promise<ComposerAttachment[] | null> {
   if (!isTauriRuntime()) return null
 
@@ -43,7 +58,7 @@ export async function selectNativeFileAttachments(): Promise<ComposerAttachment[
       directory: false,
     })
     const paths = normalizeDialogSelection(selected)
-    return paths.map(pathToComposerAttachment)
+    return pathsToComposerAttachments(paths)
   } catch (error) {
     console.warn('[attachments] Native file picker failed; falling back to browser file input', error)
     return null

@@ -884,6 +884,8 @@ export const zh: Record<TranslationKey, string> = {
   'chat.placeholder': '让 Claude 编辑、调试或解释代码...',
   'chat.placeholderMissing': '此会话指向的工作目录缺失。请新建会话或选择其他项目。',
   'chat.addFiles': '添加文件或图片',
+  'chat.dropFilesTitle': '松手添加文件',
+  'chat.dropFilesHint': '会以文件路径附加到当前输入。',
   'chat.workspaceReferencesOnly': '已添加 {count} 个工作区引用',
   'chat.contextReferencesOnly': '已添加 {count} 个引用',
   'chat.addSelectionToChat': '添加至对话',

@@ -13,6 +13,7 @@ import { RepositoryLaunchControls } from '../components/shared/RepositoryLaunchC
 import { PermissionModeSelector } from '../components/controls/PermissionModeSelector'
 import { ModelSelector } from '../components/controls/ModelSelector'
 import { AttachmentGallery } from '../components/chat/AttachmentGallery'
+import { ComposerDropOverlay } from '../components/chat/ComposerDropOverlay'
 import { ContextUsageIndicator } from '../components/chat/ContextUsageIndicator'
 import { FileSearchMenu, type FileSearchMenuHandle } from '../components/chat/FileSearchMenu'
 import { LocalSlashCommandPanel, type LocalSlashCommandName } from '../components/chat/LocalSlashCommandPanel'
@@ -23,6 +24,7 @@ import {
   selectNativeFileAttachments,
   type ComposerAttachment,
 } from '../lib/composerAttachments'
+import { useComposerFileDrop } from '../components/chat/useComposerFileDrop'
 import {
   FALLBACK_SLASH_COMMANDS,
   filterSlashCommands,
@@ -94,6 +96,7 @@ export function EmptySession() {
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0)
   const [slashCommands, setSlashCommands] = useState<SlashCommandOption[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const plusMenuRef = useRef<HTMLDivElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
@@ -446,6 +449,19 @@ export function EmptySession() {
       })
   }, [])
 
+  const appendAttachments = useCallback((nextAttachments: Attachment[]) => {
+    if (nextAttachments.length === 0) return
+    setAttachments((prev) => [...prev, ...nextAttachments])
+  }, [])
+
+  const { isDragActive, dragHandlers } = useComposerFileDrop({
+    panelRef,
+    onAttachments: appendAttachments,
+    onError: (error) => {
+      console.warn('[attachments] Failed to read dropped files', error)
+    },
+  })
+
   const openAttachmentPicker = useCallback(() => {
     if (!isTauriRuntime()) {
       fileInputRef.current?.click()
@@ -472,14 +488,6 @@ export function EmptySession() {
 
     appendFiles(files)
     event.target.value = ''
-  }
-
-  const handleDrop = (event: React.DragEvent) => {
-    event.preventDefault()
-    const files = event.dataTransfer.files
-    if (files.length > 0) {
-      appendFiles(files)
-    }
   }
 
   const removeAttachment = (id: string) => {
@@ -556,13 +564,21 @@ export function EmptySession() {
       >
         <div className={`flex w-full flex-col ${isMobileComposer ? 'max-w-none' : 'max-w-3xl'}`}>
           <div
+            ref={panelRef}
             data-testid="empty-session-composer-panel"
-            className={`glass-panel relative flex flex-col gap-3 ${
+            className={`glass-panel relative flex flex-col gap-3 overflow-hidden ${
               isMobileComposer ? 'rounded-2xl p-3 shadow-[0_-12px_36px_rgba(54,35,28,0.12)]' : 'rounded-xl p-0'
-            }`}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={handleDrop}
+            } ${isDragActive ? 'composer-drop-target-active' : ''}`}
+            {...dragHandlers}
           >
+            {isDragActive && (
+              <ComposerDropOverlay
+                testId="empty-session-drop-overlay"
+                title={t('chat.dropFilesTitle')}
+                description={t('chat.dropFilesHint')}
+              />
+            )}
+
             <div className={isMobileComposer ? 'contents' : 'flex flex-col gap-3 p-4'}>
               {fileSearchOpen && (
                 <FileSearchMenu

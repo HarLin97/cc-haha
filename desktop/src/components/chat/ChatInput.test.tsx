@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   browse: vi.fn(),
   wsSend: vi.fn(),
   dialogOpen: vi.fn(),
+  webviewDragHandlers: [] as Array<(event: { payload: unknown }) => void>,
+  webviewUnlisten: vi.fn(),
 }))
 
 vi.mock('../../api/sessions', () => ({
@@ -54,6 +56,15 @@ vi.mock('../../api/websocket', () => ({
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: mocks.dialogOpen,
+}))
+
+vi.mock('@tauri-apps/api/webview', () => ({
+  getCurrentWebview: () => ({
+    onDragDropEvent: vi.fn(async (handler: (event: { payload: unknown }) => void) => {
+      mocks.webviewDragHandlers.push(handler)
+      return mocks.webviewUnlisten
+    }),
+  }),
 }))
 
 vi.mock('../../hooks/useMobileViewport', () => ({
@@ -118,6 +129,7 @@ describe('ChatInput file mentions', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.webviewDragHandlers.length = 0
     delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
     viewportMocks.isMobile = false
     useSettingsStore.setState({ locale: 'en' })
@@ -659,6 +671,77 @@ describe('ChatInput file mentions', () => {
           type: 'file',
           name: 'large-b.zip',
           path: 'C:\\Users\\Nanmi\\Desktop\\large-b.zip',
+          data: undefined,
+        }),
+      ],
+    })
+  })
+
+  it('accepts native desktop file drops on the active session composer as path-only attachments', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    })
+
+    render(<ChatInput compact />)
+
+    const panel = screen.getByTestId('chat-input-panel')
+    Object.defineProperty(panel, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        right: 640,
+        bottom: 180,
+        width: 640,
+        height: 180,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }),
+    })
+
+    await waitFor(() => {
+      expect(mocks.webviewDragHandlers).toHaveLength(1)
+    })
+
+    act(() => {
+      mocks.webviewDragHandlers[0]?.({
+        payload: { type: 'over', position: { x: 24, y: 24 } },
+      })
+    })
+    expect(screen.getByTestId('chat-input-drop-overlay')).toBeInTheDocument()
+
+    act(() => {
+      mocks.webviewDragHandlers[0]?.({
+        payload: {
+          type: 'drop',
+          position: { x: 24, y: 24 },
+          paths: ['/Users/nanmi/drop/large-a.log'],
+        },
+      })
+    })
+
+    expect(await screen.findByText('large-a.log')).toBeInTheDocument()
+    expect(screen.queryByTestId('chat-input-drop-overlay')).not.toBeInTheDocument()
+
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    fireEvent.change(input, {
+      target: {
+        value: 'analyze dropped file',
+        selectionStart: 'analyze dropped file'.length,
+      },
+    })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(mocks.wsSend).toHaveBeenCalledWith(sessionId, {
+      type: 'user_message',
+      content: 'analyze dropped file',
+      attachments: [
+        expect.objectContaining({
+          type: 'file',
+          name: 'large-a.log',
+          path: '/Users/nanmi/drop/large-a.log',
           data: undefined,
         }),
       ],

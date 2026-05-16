@@ -26,8 +26,8 @@ export const FALLBACK_SLASH_COMMANDS = [
   { name: 'clear', description: 'Clear conversation history' },
   {
     name: 'goal',
-    description: 'Set a completion goal',
-    argumentHint: '[<condition> | clear]',
+    description: 'Create or manage an autonomous completion goal',
+    argumentHint: '[status|pause|resume|complete|clear|--tokens <budget>|<objective>]',
   },
   { name: 'review', description: 'Review code changes' },
   { name: 'commit', description: 'Create a git commit' },

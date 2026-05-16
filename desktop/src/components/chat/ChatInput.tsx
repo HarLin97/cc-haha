@@ -17,6 +17,7 @@ import { PermissionModeSelector } from '../controls/PermissionModeSelector'
 import { ModelSelector } from '../controls/ModelSelector'
 import type { AttachmentRef } from '../../types/chat'
 import { AttachmentGallery } from './AttachmentGallery'
+import { ComposerDropOverlay } from './ComposerDropOverlay'
 import { ProjectContextChip } from '../shared/ProjectContextChip'
 import { RepositoryLaunchControls } from '../shared/RepositoryLaunchControls'
 import { FileSearchMenu, type FileSearchMenuHandle } from './FileSearchMenu'
@@ -37,6 +38,7 @@ import {
   selectNativeFileAttachments,
   type ComposerAttachment,
 } from '../../lib/composerAttachments'
+import { useComposerFileDrop } from './useComposerFileDrop'
 
 type GitInfo = SessionGitInfo
 
@@ -88,6 +90,7 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
   const [launchTransitioning, setLaunchTransitioning] = useState(false)
   const composingRef = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const plusMenuRef = useRef<HTMLDivElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
@@ -707,6 +710,20 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
       })
   }, [setComposerAttachments])
 
+  const appendAttachments = useCallback((nextAttachments: Attachment[]) => {
+    if (nextAttachments.length === 0) return
+    setComposerAttachments((prev) => [...prev, ...nextAttachments])
+  }, [setComposerAttachments])
+
+  const { isDragActive, dragHandlers } = useComposerFileDrop({
+    disabled: isMemberSession || isWorkspaceMissing,
+    panelRef,
+    onAttachments: appendAttachments,
+    onError: (error) => {
+      console.warn('[attachments] Failed to read dropped files', error)
+    },
+  })
+
   const openAttachmentPicker = useCallback(() => {
     if (!isTauriRuntime()) {
       fileInputRef.current?.click()
@@ -734,15 +751,6 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
 
     appendFiles(files)
     event.target.value = ''
-  }
-
-  const handleDrop = (event: React.DragEvent) => {
-    event.preventDefault()
-    if (isMemberSession) return
-    const files = event.dataTransfer.files
-    if (files.length > 0) {
-      appendFiles(files)
-    }
   }
 
   const removeAttachment = (id: string) => {
@@ -798,15 +806,23 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
         }
       >
         <div
+          ref={panelRef}
           data-testid="chat-input-panel"
           className={isHeroComposer
-            ? `glass-panel relative flex flex-col gap-3 ${embedLaunchControlsInHero ? 'rounded-xl' : 'rounded-t-xl rounded-b-none'} p-4 transition-colors`
+            ? `glass-panel relative flex flex-col gap-3 overflow-hidden ${embedLaunchControlsInHero ? 'rounded-xl' : 'rounded-t-xl rounded-b-none'} p-4 transition-colors ${isDragActive ? 'composer-drop-target-active' : ''}`
             : compact
-              ? `glass-panel relative p-3 transition-colors ${isMobileComposer ? 'rounded-2xl shadow-[0_-12px_36px_rgba(54,35,28,0.12)]' : 'rounded-xl'}`
-              : `glass-panel relative transition-colors ${isMobileComposer ? 'rounded-2xl p-3 shadow-[0_-12px_36px_rgba(54,35,28,0.12)]' : 'rounded-xl p-4'}`}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={handleDrop}
+              ? `glass-panel relative overflow-hidden p-3 transition-colors ${isMobileComposer ? 'rounded-2xl shadow-[0_-12px_36px_rgba(54,35,28,0.12)]' : 'rounded-xl'} ${isDragActive ? 'composer-drop-target-active' : ''}`
+              : `glass-panel relative overflow-hidden transition-colors ${isMobileComposer ? 'rounded-2xl p-3 shadow-[0_-12px_36px_rgba(54,35,28,0.12)]' : 'rounded-xl p-4'} ${isDragActive ? 'composer-drop-target-active' : ''}`}
+          {...dragHandlers}
         >
+          {isDragActive && (
+            <ComposerDropOverlay
+              testId="chat-input-drop-overlay"
+              title={t('chat.dropFilesTitle')}
+              description={t('chat.dropFilesHint')}
+            />
+          )}
+
           {!isMemberSession && fileSearchOpen && (
             <FileSearchMenu
               ref={fileSearchRef}

@@ -882,6 +882,8 @@ export const en = {
   'chat.placeholder': 'Ask Claude to edit, debug or explain...',
   'chat.placeholderMissing': 'This session points to a missing workspace. Create a new session or pick another project.',
   'chat.addFiles': 'Add files or photos',
+  'chat.dropFilesTitle': 'Drop files here',
+  'chat.dropFilesHint': 'Attached as file paths.',
   'chat.workspaceReferencesOnly': 'Added {count} workspace references',
   'chat.contextReferencesOnly': 'Added {count} references',
   'chat.addSelectionToChat': 'Add to chat',
