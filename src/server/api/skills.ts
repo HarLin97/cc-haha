@@ -224,25 +224,11 @@ async function collectSkillsFromRoots(
     }
 
     for (const entry of entries) {
-      if (
-         (!entry.isDirectory() && !entry.isSymbolicLink()) ||
-         entry.name.startsWith('.') ||
-         seenNames.has(entry.name)
-      ) {
-         continue
+      if (!entry.isDirectory() || entry.name.startsWith('.') || seenNames.has(entry.name)) {
+        continue
       }
 
-      const skillDir = path.join(root, entry.name)
-      const skillFile = path.join(skillDir, 'SKILL.md')
- 
-      try {
-         const stat = await fs.stat(skillFile)
-      if (!stat.isFile()) continue
-      } catch {
-         continue
-      }
- 
-      const meta = await loadSkillMeta(skillDir, entry.name, source)
+      const meta = await loadSkillMeta(path.join(root, entry.name), entry.name, source)
       if (!meta) continue
 
       seenNames.add(entry.name)
