@@ -134,6 +134,95 @@ describe('goalEvaluator', () => {
     )
   })
 
+  test('marks complete from finished task evidence without waiting for the evaluator', async () => {
+    setThreadGoal('thread-eval-complete-tasks', {
+      objective: 'build a todo app and review it',
+      now: 1_000,
+    })
+
+    const decision = await evaluateThreadGoalAfterTurn({
+      threadId: 'thread-eval-complete-tasks',
+      messages: [
+        createUserMessage({
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'task-create-1',
+              content: 'Task #1 created successfully: Build app',
+            } as unknown as BetaContentBlock,
+          ],
+        }),
+        createAssistantMessage({
+          content: [
+            {
+              type: 'tool_use',
+              id: 'task-update-1',
+              name: 'TaskUpdate',
+              input: { taskId: '1', status: 'completed' },
+            } as unknown as BetaContentBlock,
+          ],
+        }),
+      ],
+      assistantMessages: [
+        createAssistantMessage({
+          content: [
+            {
+              type: 'text',
+              text: '## 完成总结\n\n已成功创建 Todo 应用。TypeScript 编译、ESLint PASS (0 errors)、Vite 生产构建均通过。',
+            },
+          ],
+        }),
+      ],
+      signal: new AbortController().signal,
+      now: 3_000,
+      evaluate: async () => {
+        throw new Error('completion evidence should not call evaluator')
+      },
+    })
+
+    expect(decision.action).toBe('complete')
+    expect(getThreadGoal('thread-eval-complete-tasks')?.status).toBe('complete')
+  })
+
+  test('continues instead of hanging when the evaluator times out', async () => {
+    setThreadGoal('thread-eval-timeout', {
+      objective: 'finish after external proof',
+      now: 1_000,
+    })
+    const previous = process.env.CLAUDE_CODE_GOAL_EVALUATOR_TIMEOUT_MS
+    process.env.CLAUDE_CODE_GOAL_EVALUATOR_TIMEOUT_MS = '5'
+    try {
+      const decision = await evaluateThreadGoalAfterTurn({
+        threadId: 'thread-eval-timeout',
+        messages: [
+          createAssistantMessage({
+            content: [{ type: 'text', text: 'Still checking.' }],
+          }),
+        ],
+        assistantMessages: [],
+        signal: new AbortController().signal,
+        now: 3_000,
+        evaluate: async ({ signal }) =>
+          new Promise((resolve, reject) => {
+            signal.addEventListener('abort', () =>
+              reject(new Error('aborted by timeout')),
+            )
+          }),
+      })
+
+      expect(decision.action).toBe('continue')
+      if (decision.action === 'continue') {
+        expect(decision.reason).toContain('timed out')
+      }
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CLAUDE_CODE_GOAL_EVALUATOR_TIMEOUT_MS
+      } else {
+        process.env.CLAUDE_CODE_GOAL_EVALUATOR_TIMEOUT_MS = previous
+      }
+    }
+  })
+
   test('continues an active goal before evaluating when tasks are still incomplete', async () => {
     setThreadGoal('thread-eval-open-task', {
       objective: 'finish all task-list work',

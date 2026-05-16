@@ -5,6 +5,7 @@ import type {
 import type { QuerySource } from '../constants/querySource.js'
 import type { AssistantMessage, Message } from '../types/message.js'
 import { extractTextContent } from '../utils/messages.js'
+import { createCombinedAbortSignal } from '../utils/combinedAbortSignal.js'
 import { getSmallFastModel } from '../utils/model/model.js'
 import { safeParseJSON } from '../utils/json.js'
 import { sideQuery } from '../utils/sideQuery.js'
@@ -38,6 +39,7 @@ type EvaluateFn = (input: {
 }) => Promise<GoalEvaluation>
 
 const DEFAULT_MAX_CONTINUATIONS = 500
+const DEFAULT_EVALUATOR_TIMEOUT_MS = 45_000
 
 export async function evaluateThreadGoalAfterTurn(input: {
   threadId: string
@@ -97,12 +99,29 @@ export async function evaluateThreadGoalAfterTurn(input: {
     }
   }
 
+  const localCompletionReason = inferCompletionFromTaskEvidence(
+    [...input.messages, ...input.assistantMessages],
+    taskState,
+  )
+  if (localCompletionReason) {
+    const completed =
+      markThreadGoalComplete(input.threadId, {
+        reason: localCompletionReason,
+        now,
+      }) ?? accounted
+    return {
+      action: 'complete',
+      goal: completed,
+      reason: localCompletionReason,
+    }
+  }
+
   const transcript = formatTranscript([
     ...input.messages,
     ...input.assistantMessages,
   ])
   const evaluator = input.evaluate ?? evaluateGoalCompletion
-  const evaluation = await evaluator({
+  const evaluation = await evaluateWithTimeout(evaluator, {
     goal: accounted,
     transcript,
     signal: input.signal,
@@ -284,7 +303,10 @@ type TaskSummary = {
   status: string
 }
 
-function summarizeTaskState(messages: Message[]): { incomplete: TaskSummary[] } {
+function summarizeTaskState(messages: Message[]): {
+  tasks: TaskSummary[]
+  incomplete: TaskSummary[]
+} {
   const tasks = new Map<string, TaskSummary>()
 
   for (const message of messages) {
@@ -325,8 +347,10 @@ function summarizeTaskState(messages: Message[]): { incomplete: TaskSummary[] } 
     }
   }
 
+  const allTasks = [...tasks.values()]
   return {
-    incomplete: [...tasks.values()].filter(task =>
+    tasks: allTasks,
+    incomplete: allTasks.filter(task =>
       task.status === 'pending' || task.status === 'in_progress',
     ),
   }
@@ -367,4 +391,95 @@ function getMaxContinuations(): number {
   return Number.isFinite(parsed) && parsed > 0
     ? parsed
     : DEFAULT_MAX_CONTINUATIONS
+}
+
+async function evaluateWithTimeout(
+  evaluator: EvaluateFn,
+  input: {
+    goal: ThreadGoal
+    transcript: string
+    signal: AbortSignal
+    querySource?: QuerySource
+  },
+): Promise<GoalEvaluation> {
+  const timeoutMs = getEvaluatorTimeoutMs()
+  const { signal, cleanup } = createCombinedAbortSignal(input.signal, {
+    timeoutMs,
+  })
+  try {
+    return await evaluator({
+      ...input,
+      signal,
+    })
+  } catch (error) {
+    if (input.signal.aborted) throw error
+    if (signal.aborted) {
+      return {
+        complete: false,
+        reason: `The goal completion evaluator timed out after ${Math.round(
+          timeoutMs / 1000,
+        )}s.`,
+      }
+    }
+    throw error
+  } finally {
+    cleanup()
+  }
+}
+
+function getEvaluatorTimeoutMs(): number {
+  const raw = process.env.CLAUDE_CODE_GOAL_EVALUATOR_TIMEOUT_MS
+  if (!raw) return DEFAULT_EVALUATOR_TIMEOUT_MS
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_EVALUATOR_TIMEOUT_MS
+}
+
+function inferCompletionFromTaskEvidence(
+  messages: Message[],
+  taskState: { tasks: TaskSummary[]; incomplete: TaskSummary[] },
+): string | null {
+  if (taskState.tasks.length === 0 || taskState.incomplete.length > 0) {
+    return null
+  }
+
+  const text = latestAssistantVisibleText(messages)
+  if (!text) return null
+  if (looksLikeFailureOrIncomplete(text)) return null
+  if (!looksLikeCompletionSummary(text)) return null
+
+  return `All ${taskState.tasks.length} tracked task(s) are complete and the final assistant response reports completion.`
+}
+
+function latestAssistantVisibleText(messages: Message[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message?.type !== 'assistant') continue
+    const text = assistantVisibleText(message.message.content).trim()
+    if (text) return text
+  }
+  return ''
+}
+
+function looksLikeCompletionSummary(text: string): boolean {
+  return (
+    /完成总结|目标已完成|已成功|全部验[证證]通过|均通过|构建成功|检查结果|代码审查结果/.test(
+      text,
+    ) ||
+    /\b(completion summary|completed|complete|successfully|all tests passed|build passed|review complete|ready)\b/i.test(
+      text,
+    )
+  )
+}
+
+function looksLikeFailureOrIncomplete(text: string): boolean {
+  return (
+    /未完成|尚未完成|没有完成|失败|未通过|阻塞|(?:存在|有|出现|发现).{0,6}错误/.test(
+      text,
+    ) ||
+    /\b(incomplete|not complete|not completed|not all tests passed|tests? did not pass|failed|failing|failure|blocked|errors? found|has errors?)\b/i.test(
+      text,
+    )
+  )
 }
