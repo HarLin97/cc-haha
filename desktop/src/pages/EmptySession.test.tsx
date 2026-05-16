@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   getMessages: vi.fn(),
   getSlashCommands: vi.fn(),
   listSkills: vi.fn(),
+  search: vi.fn(),
+  browse: vi.fn(),
   getTasksForList: vi.fn(),
   resetTaskList: vi.fn(),
   wsClearHandlers: vi.fn(),
@@ -36,6 +38,13 @@ vi.mock('../api/sessions', () => ({
 vi.mock('../api/skills', () => ({
   skillsApi: {
     list: mocks.listSkills,
+  },
+}))
+
+vi.mock('../api/filesystem', () => ({
+  filesystemApi: {
+    search: mocks.search,
+    browse: mocks.browse,
   },
 }))
 
@@ -191,6 +200,12 @@ describe('EmptySession', () => {
     mocks.getMessages.mockResolvedValue({ messages: [] })
     mocks.getSlashCommands.mockResolvedValue({ commands: [] })
     mocks.listSkills.mockResolvedValue({ skills: [] })
+    mocks.search.mockResolvedValue({
+      currentPath: '/workspace/project',
+      parentPath: null,
+      query: '',
+      entries: [],
+    })
     mocks.getTasksForList.mockResolvedValue({ tasks: [] })
     mocks.resetTaskList.mockResolvedValue(undefined)
   })
@@ -487,6 +502,42 @@ describe('EmptySession', () => {
         }),
       ],
     })
+  })
+
+  it('keeps slash and @ popovers visible above the empty-session drop target', async () => {
+    mocks.search.mockResolvedValueOnce({
+      currentPath: '/workspace/project',
+      parentPath: null,
+      query: '',
+      entries: [
+        { name: 'README.md', path: '/workspace/project/README.md', isDirectory: false },
+      ],
+    })
+
+    render(<EmptySession />)
+
+    const panel = screen.getByTestId('empty-session-composer-panel')
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+
+    fireEvent.change(input, {
+      target: {
+        value: '/',
+        selectionStart: 1,
+      },
+    })
+    expect(await screen.findByText('/mcp')).toBeInTheDocument()
+    expect(panel).toHaveClass('overflow-visible')
+    expect(panel).not.toHaveClass('overflow-hidden')
+
+    fireEvent.change(input, {
+      target: {
+        value: '@readme',
+        selectionStart: 7,
+      },
+    })
+    expect(await screen.findByText('README.md')).toBeInTheDocument()
+    expect(panel).toHaveClass('overflow-visible')
+    expect(panel).not.toHaveClass('overflow-hidden')
   })
 
   it('starts in a selected non-Git project without showing a repository warning', async () => {

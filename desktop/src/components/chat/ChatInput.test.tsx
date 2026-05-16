@@ -748,6 +748,42 @@ describe('ChatInput file mentions', () => {
     })
   })
 
+  it('keeps slash and @ popovers outside the drop target clipping context', async () => {
+    mocks.search.mockResolvedValueOnce({
+      currentPath: '/repo',
+      parentPath: null,
+      query: '',
+      entries: [
+        { name: 'README.md', path: '/repo/README.md', isDirectory: false },
+      ],
+    })
+
+    render(<ChatInput compact />)
+
+    const panel = screen.getByTestId('chat-input-panel')
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+
+    fireEvent.change(input, {
+      target: {
+        value: '/',
+        selectionStart: 1,
+      },
+    })
+    expect(await screen.findByText('/mcp')).toBeInTheDocument()
+    expect(panel).toHaveClass('overflow-visible')
+    expect(panel).not.toHaveClass('overflow-hidden')
+
+    fireEvent.change(input, {
+      target: {
+        value: '@readme',
+        selectionStart: 7,
+      },
+    })
+    expect(await screen.findByText('README.md')).toBeInTheDocument()
+    expect(panel).toHaveClass('overflow-visible')
+    expect(panel).not.toHaveClass('overflow-hidden')
+  })
+
   it('uses larger icon-only mobile action buttons for browser H5 access', async () => {
     viewportMocks.isMobile = true
     mocks.search.mockResolvedValueOnce({

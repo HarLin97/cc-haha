@@ -566,7 +566,7 @@ export function EmptySession() {
           <div
             ref={panelRef}
             data-testid="empty-session-composer-panel"
-            className={`glass-panel relative flex flex-col gap-3 overflow-hidden ${
+            className={`glass-panel relative flex flex-col gap-3 overflow-visible ${
               isMobileComposer ? 'rounded-2xl p-3 shadow-[0_-12px_36px_rgba(54,35,28,0.12)]' : 'rounded-xl p-0'
             } ${isDragActive ? 'composer-drop-target-active' : ''}`}
             {...dragHandlers}
