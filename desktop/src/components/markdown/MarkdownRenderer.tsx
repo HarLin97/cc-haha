@@ -27,10 +27,16 @@ type MathBlock = {
   displayMode: boolean
 }
 
+type HtmlPart = { type: 'html'; content: string }
+type CodePart = { type: 'code'; block: CodeBlock }
+type MarkdownPart = HtmlPart | CodePart
+
 const MERMAID_LANGUAGE = 'mermaid'
 const PLAINTEXT_LANGUAGES = new Set(['', 'text', 'plaintext', 'plain'])
 const MERMAID_DIAGRAM_START = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie|gitGraph|mindmap|timeline|requirementDiagram|quadrantChart|xychart-beta|sankey-beta|block-beta|packet-beta|architecture|kanban)\b/i
 const CODE_FENCE_START = /^ {0,3}(`{3,}|~{3,})/
+const MATH_RENDER_CACHE_LIMIT = 200
+const mathRenderCache = new Map<string, string>()
 
 function normalizeCodeLanguage(language: string | undefined): string | undefined {
   const normalized = language?.trim().split(/\s+/)[0]?.toLowerCase()
@@ -221,13 +227,24 @@ function extractMath(content: string): { markdown: string; mathBlocks: MathBlock
 }
 
 function renderMath(block: MathBlock): string {
+  const cacheKey = `${block.displayMode ? 'block' : 'inline'}\0${block.tex}`
+  const cached = mathRenderCache.get(cacheKey)
+  if (cached) return cached
+
   try {
-    return katex.renderToString(block.tex, {
+    const rendered = katex.renderToString(block.tex, {
       displayMode: block.displayMode,
+      output: 'html',
       throwOnError: false,
       strict: false,
       trust: false,
     })
+    mathRenderCache.set(cacheKey, rendered)
+    if (mathRenderCache.size > MATH_RENDER_CACHE_LIMIT) {
+      const firstKey = mathRenderCache.keys().next().value
+      if (firstKey) mathRenderCache.delete(firstKey)
+    }
+    return rendered
   } catch {
     return DOMPurify.sanitize(block.tex)
   }
@@ -238,6 +255,11 @@ function enhanceMarkdownHtml(html: string, mathBlocks: MathBlock[]): string {
     ADD_TAGS: ['use'],
     ADD_ATTR: ['xlink:href'],
   })
+
+  const needsDomEnhancement = mathBlocks.length > 0 || /<(?:a|table)\b/i.test(cleanHtml)
+  if (!needsDomEnhancement) {
+    return cleanHtml
+  }
 
   if (typeof document === 'undefined') {
     return cleanHtml
@@ -350,10 +372,10 @@ export function MarkdownRenderer({ content, variant = 'default', className, onLi
 
   const parts = useMemo(() => {
     if (codeBlocks.length === 0) {
-      return [{ type: 'html' as const, content: html }]
+      return [{ type: 'html' as const, content: enhanceMarkdownHtml(html, mathBlocks) }]
     }
 
-    const result: Array<{ type: 'html'; content: string } | { type: 'code'; block: CodeBlock }> = []
+    const result: MarkdownPart[] = []
     let remaining = html
 
     for (const block of codeBlocks) {
@@ -363,18 +385,18 @@ export function MarkdownRenderer({ content, variant = 'default', className, onLi
 
       const before = remaining.slice(0, idx)
       if (before) {
-        result.push({ type: 'html', content: before })
+        result.push({ type: 'html', content: enhanceMarkdownHtml(before, mathBlocks) })
       }
       result.push({ type: 'code', block })
       remaining = remaining.slice(idx + marker.length)
     }
 
     if (remaining) {
-      result.push({ type: 'html', content: remaining })
+      result.push({ type: 'html', content: enhanceMarkdownHtml(remaining, mathBlocks) })
     }
 
     return result
-  }, [html, codeBlocks])
+  }, [html, codeBlocks, mathBlocks])
 
   const handleClick = useCallback(async (event: ReactMouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null
@@ -405,11 +427,10 @@ export function MarkdownRenderer({ content, variant = 'default', className, onLi
   }, [onLinkClick])
 
   if (codeBlocks.length === 0) {
-    const cleanHtml = enhanceMarkdownHtml(html, mathBlocks)
     return (
       <div
         className={proseClasses}
-        dangerouslySetInnerHTML={{ __html: cleanHtml }}
+        dangerouslySetInnerHTML={{ __html: parts[0]?.type === 'html' ? parts[0].content : '' }}
         onClick={handleClick}
       />
     )
@@ -419,7 +440,7 @@ export function MarkdownRenderer({ content, variant = 'default', className, onLi
     <div className={proseClasses} onClick={handleClick}>
       {parts.map((part, i) =>
         part.type === 'html' ? (
-          <div key={i} dangerouslySetInnerHTML={{ __html: enhanceMarkdownHtml(part.content, mathBlocks) }} />
+          <div key={i} dangerouslySetInnerHTML={{ __html: part.content }} />
         ) : shouldRenderAsMermaid(part.block) ? (
           <MermaidRenderer key={part.block.id} code={part.block.code} />
         ) : (

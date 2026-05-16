@@ -122,6 +122,8 @@ describe('MarkdownRenderer', () => {
     )
 
     expect(container.querySelectorAll('.katex')).toHaveLength(2)
+    expect(container.querySelectorAll('.katex-html')).toHaveLength(2)
+    expect(container.querySelector('.katex-mathml')).not.toBeInTheDocument()
     expect(container.querySelector('.md-math-inline')).toBeInTheDocument()
     expect(container.querySelector('.md-math-display')).toBeInTheDocument()
     expect(container.textContent).not.toContain('$E = mc^2$')
