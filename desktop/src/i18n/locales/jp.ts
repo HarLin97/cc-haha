@@ -2117,6 +2117,8 @@ export const jp: Record<TranslationKey, string> = {
   'chat.turnChangesOpenInWorkspaceAria': '{path} をワークスペースで開く',
   'chat.turnChangesOpenFileAria': '{path} を開く',
   'chat.turnChangesShowMore': 'さらに {count} 個のファイルを表示',
+  'chat.turnChangesExpand': '{count} 件の変更ファイルを展開',
+  'chat.turnChangesCollapse': '変更ファイルを折りたたむ',
   'chat.turnChangesShowLess': '表示を減らす',
 
   // ─── Streaming Indicator ──────────────────────────────────────

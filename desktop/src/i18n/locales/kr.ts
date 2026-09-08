@@ -2117,6 +2117,8 @@ export const kr: Record<TranslationKey, string> = {
   'chat.turnChangesOpenInWorkspaceAria': '{path}을(를) 작업 공간에서 열기',
   'chat.turnChangesOpenFileAria': '{path} 열기',
   'chat.turnChangesShowMore': '{count}개의 파일 더 보기',
+  'chat.turnChangesExpand': '변경된 파일 {count}개 펼치기',
+  'chat.turnChangesCollapse': '변경된 파일 접기',
   'chat.turnChangesShowLess': '적게 보기',
 
   // ─── Streaming Indicator ──────────────────────────────────────

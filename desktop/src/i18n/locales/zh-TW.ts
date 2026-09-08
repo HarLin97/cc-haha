@@ -2116,6 +2116,8 @@ export const zh: Record<TranslationKey, string> = {
   'chat.turnChangesOpenInWorkspaceAria': '在工作區開啟 {path}',
   'chat.turnChangesOpenFileAria': '開啟 {path}',
   'chat.turnChangesShowMore': '再顯示 {count} 個檔案',
+  'chat.turnChangesExpand': '展開 {count} 個變更檔案',
+  'chat.turnChangesCollapse': '摺疊變更檔案',
   'chat.turnChangesShowLess': '收起',
 
   // ─── Streaming Indicator ──────────────────────────────────────

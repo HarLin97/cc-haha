@@ -2115,6 +2115,8 @@ Row 9, all 8 cells: continuing from straight down, turning left through lower-le
   'chat.turnChangesOpenInWorkspaceAria': 'Open {path} in workspace',
   'chat.turnChangesOpenFileAria': 'Open {path}',
   'chat.turnChangesShowMore': 'Show {count} more files',
+  'chat.turnChangesExpand': 'Show {count} changed files',
+  'chat.turnChangesCollapse': 'Hide changed files',
   'chat.turnChangesShowLess': 'Show less',
 
   // ─── Streaming Indicator ──────────────────────────────────────
