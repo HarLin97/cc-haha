@@ -2143,6 +2143,8 @@ export const jp: Record<TranslationKey, string> = {
   'permission.planPreviewTitle': 'Claude の計画',
   'permission.planRequestedPermissions': '要求された権限',
   'permission.planApprove': '計画を承認',
+  'permission.planApproveAcceptEdits': '承認して編集を自動承認',
+  'permission.planApproveBypass': '承認して権限をバイパス',
   'permission.planKeepPlanning': '計画を続ける',
   'permission.planFeedbackPlaceholder': 'Claude に変更内容を伝える',
   'permission.planEmpty': '計画内容はありません。',

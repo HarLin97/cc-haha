@@ -2142,6 +2142,8 @@ export const zh: Record<TranslationKey, string> = {
   'permission.planPreviewTitle': 'Claude 的计划',
   'permission.planRequestedPermissions': '请求的权限',
   'permission.planApprove': '批准计划',
+  'permission.planApproveAcceptEdits': '批准并自动接受编辑',
+  'permission.planApproveBypass': '批准并跳过权限',
   'permission.planKeepPlanning': '继续规划',
   'permission.planFeedbackPlaceholder': '告诉 Claude 需要修改什么',
   'permission.planEmpty': '暂无计划内容。',

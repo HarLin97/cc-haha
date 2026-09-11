@@ -2141,6 +2141,8 @@ Row 9, all 8 cells: continuing from straight down, turning left through lower-le
   'permission.planPreviewTitle': "Claude's plan",
   'permission.planRequestedPermissions': 'Requested permissions',
   'permission.planApprove': 'Approve plan',
+  'permission.planApproveAcceptEdits': 'Approve & auto-accept edits',
+  'permission.planApproveBypass': 'Approve & bypass permissions',
   'permission.planKeepPlanning': 'Keep planning',
   'permission.planFeedbackPlaceholder': 'Tell Claude what to change',
   'permission.planEmpty': 'No plan content available.',

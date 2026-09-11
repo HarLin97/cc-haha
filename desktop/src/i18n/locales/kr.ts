@@ -2143,6 +2143,8 @@ export const kr: Record<TranslationKey, string> = {
   'permission.planPreviewTitle': 'Claude의 계획',
   'permission.planRequestedPermissions': '요청된 권한',
   'permission.planApprove': '계획 승인',
+  'permission.planApproveAcceptEdits': '승인 후 편집 자동 수락',
+  'permission.planApproveBypass': '승인 후 권한 건너뛰기',
   'permission.planKeepPlanning': '계속 계획하기',
   'permission.planFeedbackPlaceholder': 'Claude에게 변경할 내용을 알려주세요',
   'permission.planEmpty': '계획 내용이 없습니다.',
