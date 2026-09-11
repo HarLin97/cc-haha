@@ -1,6 +1,25 @@
 import type { TranslationKey } from './en'
 
 export const zh: Record<TranslationKey, string> = {
+  'settings.providers.compatibilityJsonHint': 'requestCompatibility 仅保存到当前供应商，不写入全局设置。',
+  'settings.providers.compatibilityBudget': '回复输出预算',
+  'settings.providers.compatibilityBudgetHint': '普通回复请求的最大输出 token 数。留空自动选择；后台短请求仍使用较小预算。',
+  'settings.providers.compatibilityAdvanced': '高级兼容设置',
+  'settings.providers.compatibilityReset': '重置兼容设置',
+  'settings.providers.compatibilityLimit': '已知端点输出上限',
+  'settings.providers.compatibilityLimitHint': '仅在供应商明确提供硬上限时填写，请求预算不会超过此值。',
+  'settings.providers.compatibilityTokenField': '输出 token 参数',
+  'settings.providers.compatibilityAuto': '自动',
+  'settings.providers.compatibilityUnknown': '未知',
+  'settings.providers.compatibilitySupported': '支持',
+  'settings.providers.compatibilityUnsupported': '不支持',
+  'settings.providers.compatibilityOmit': '不发送上限',
+  'settings.providers.compatibilitySampling': '采样参数',
+  'settings.providers.compatibilityReasoning': '推理参数',
+  'settings.providers.compatibilityParallelTools': '并行工具调用',
+  'settings.providers.compatibilityStructuredOutput': '结构化输出',
+  'settings.providers.compatibilityNumberError': '请输入正整数，或留空自动选择。',
+  'settings.providers.compatibilityJsonError': '请求兼容设置必须是包含有效选项的对象。',
   'sidebar.projectHistoryFailed': '更早的会话加载失败。',
   // ─── Common ──────────────────────────────────────
   'common.cancel': '取消',

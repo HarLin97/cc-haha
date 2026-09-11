@@ -1,6 +1,25 @@
 import type { TranslationKey } from './en'
 
 export const jp: Record<TranslationKey, string> = {
+  'settings.providers.compatibilityJsonHint': 'requestCompatibility はこのプロバイダーにのみ保存され、グローバル設定には書き込まれません。',
+  'settings.providers.compatibilityBudget': '応答の出力予算',
+  'settings.providers.compatibilityBudgetHint': '通常の応答で要求する最大出力トークン数。空欄は自動選択です。短いバックグラウンド要求には小さい予算が維持されます。',
+  'settings.providers.compatibilityAdvanced': '詳細な互換性設定',
+  'settings.providers.compatibilityReset': '互換性設定をリセット',
+  'settings.providers.compatibilityLimit': '既知のエンドポイント出力上限',
+  'settings.providers.compatibilityLimitHint': 'プロバイダーが明示する上限がある場合のみ入力してください。要求する予算はこの値を超えません。',
+  'settings.providers.compatibilityTokenField': '出力トークンのパラメーター',
+  'settings.providers.compatibilityAuto': '自動',
+  'settings.providers.compatibilityUnknown': '不明',
+  'settings.providers.compatibilitySupported': '対応',
+  'settings.providers.compatibilityUnsupported': '非対応',
+  'settings.providers.compatibilityOmit': '上限を送信しない',
+  'settings.providers.compatibilitySampling': 'サンプリングパラメーター',
+  'settings.providers.compatibilityReasoning': '推論パラメーター',
+  'settings.providers.compatibilityParallelTools': '並列ツール呼び出し',
+  'settings.providers.compatibilityStructuredOutput': '構造化出力',
+  'settings.providers.compatibilityNumberError': '正の整数を入力するか、空欄で自動選択してください。',
+  'settings.providers.compatibilityJsonError': 'リクエストの互換性設定は、有効な選択肢を持つオブジェクトである必要があります。',
   'sidebar.projectHistoryFailed': '以前のセッションを読み込めませんでした。',
   // ─── Common ──────────────────────────────────────
   'common.cancel': 'キャンセル',

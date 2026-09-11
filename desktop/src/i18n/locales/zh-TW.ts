@@ -1,6 +1,25 @@
 import type { TranslationKey } from './en'
 
 export const zh: Record<TranslationKey, string> = {
+  'settings.providers.compatibilityJsonHint': 'requestCompatibility 僅儲存到目前供應商，不寫入全域設定。',
+  'settings.providers.compatibilityBudget': '回覆輸出預算',
+  'settings.providers.compatibilityBudgetHint': '一般回覆請求的最大輸出 token 數。留空自動選擇；背景短請求仍使用較小預算。',
+  'settings.providers.compatibilityAdvanced': '進階相容設定',
+  'settings.providers.compatibilityReset': '重設相容設定',
+  'settings.providers.compatibilityLimit': '已知端點輸出上限',
+  'settings.providers.compatibilityLimitHint': '僅在供應商明確提供硬上限時填寫，請求預算不會超過此值。',
+  'settings.providers.compatibilityTokenField': '輸出 token 參數',
+  'settings.providers.compatibilityAuto': '自動',
+  'settings.providers.compatibilityUnknown': '未知',
+  'settings.providers.compatibilitySupported': '支援',
+  'settings.providers.compatibilityUnsupported': '不支援',
+  'settings.providers.compatibilityOmit': '不傳送上限',
+  'settings.providers.compatibilitySampling': '取樣參數',
+  'settings.providers.compatibilityReasoning': '推理參數',
+  'settings.providers.compatibilityParallelTools': '平行工具呼叫',
+  'settings.providers.compatibilityStructuredOutput': '結構化輸出',
+  'settings.providers.compatibilityNumberError': '請輸入正整數，或留空自動選擇。',
+  'settings.providers.compatibilityJsonError': '請求相容設定必須是包含有效選項的物件。',
   'sidebar.projectHistoryFailed': '無法載入更早的對話。',
   // ─── Common ──────────────────────────────────────
   'common.cancel': '取消',

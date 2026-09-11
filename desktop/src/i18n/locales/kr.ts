@@ -1,6 +1,25 @@
 import type { TranslationKey } from './en'
 
 export const kr: Record<TranslationKey, string> = {
+  'settings.providers.compatibilityJsonHint': 'requestCompatibility는 이 공급자에만 저장되며 전역 설정에는 기록되지 않습니다.',
+  'settings.providers.compatibilityBudget': '응답 출력 예산',
+  'settings.providers.compatibilityBudgetHint': '일반 응답에 요청할 최대 출력 토큰 수입니다. 비워 두면 자동으로 선택하며 짧은 백그라운드 요청은 작은 예산을 유지합니다.',
+  'settings.providers.compatibilityAdvanced': '고급 호환성 설정',
+  'settings.providers.compatibilityReset': '호환성 설정 초기화',
+  'settings.providers.compatibilityLimit': '알려진 엔드포인트 출력 한도',
+  'settings.providers.compatibilityLimitHint': '공급자가 명시한 최대 한도가 있을 때만 입력하세요. 요청 예산은 이 값을 초과하지 않습니다.',
+  'settings.providers.compatibilityTokenField': '출력 토큰 매개변수',
+  'settings.providers.compatibilityAuto': '자동',
+  'settings.providers.compatibilityUnknown': '알 수 없음',
+  'settings.providers.compatibilitySupported': '지원',
+  'settings.providers.compatibilityUnsupported': '지원 안 함',
+  'settings.providers.compatibilityOmit': '한도 전송 안 함',
+  'settings.providers.compatibilitySampling': '샘플링 매개변수',
+  'settings.providers.compatibilityReasoning': '추론 매개변수',
+  'settings.providers.compatibilityParallelTools': '병렬 도구 호출',
+  'settings.providers.compatibilityStructuredOutput': '구조화된 출력',
+  'settings.providers.compatibilityNumberError': '양의 정수를 입력하거나 자동 선택하려면 비워 두세요.',
+  'settings.providers.compatibilityJsonError': '요청 호환성 설정은 유효한 옵션을 포함하는 객체여야 합니다.',
   'sidebar.projectHistoryFailed': '이전 세션을 불러오지 못했습니다.',
   // ─── Common ──────────────────────────────────────
   'common.cancel': '취소',
