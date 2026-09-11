@@ -517,6 +517,12 @@ verify_relocated_cursor_resources() (
   local expected_directory="$probe_app/Contents/Resources/cu-helper_cc-haha-computer-use.bundle/LensSequence"
   [ -d "$expected_directory" ] || die "Cursor resource probe package is missing $expected_directory"
   expected_directory="$(cd "$expected_directory" && pwd -P)"
+  local canonical_app
+  canonical_app="$(cd "$probe_app" && pwd -P)"
+  case "$expected_directory" in
+    "$canonical_app"/*) ;;
+    *) die "Cursor resource probe found resources outside relocated package: $expected_directory" ;;
+  esac
   [ "$resource_directory" = "$expected_directory" ] \
     || die "Cursor resource probe loaded '$resource_directory' instead of relocated package '$expected_directory'"
   log "verified: relocated cursor resources ($resource_directory)"
