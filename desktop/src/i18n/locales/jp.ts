@@ -1789,7 +1789,7 @@ export const jp: Record<TranslationKey, string> = {
   'settings.general.networkProxyUrlRequired': 'プロキシ URL を入力してください。',
   'settings.general.networkTimeout': 'AI リクエストのタイムアウト',
   'settings.general.networkTimeoutValue': '{seconds}秒',
-  'settings.general.networkTimeoutHint': 'プロバイダーへのリクエスト、ストリーミングの最初の応答、プロバイダー接続テストに適用されます。30〜1800 秒に対応します。大きなコンテキストでは最初のストリーミングバイトまで数分かかる場合があります。',
+  'settings.general.networkTimeoutHint': 'プロバイダーへのリクエスト、ストリーミングの最初の応答、プロバイダー接続テストに適用されます。30〜1800 秒に対応します。大きなコンテキストでは最初のストリーミングバイトまで数分かかる場合があります。値を大きくすると、1 回のストリーミング応答の総時間上限も広がります（最低 600 秒）。',
   'settings.general.networkTimeoutUnit': '秒',
   'settings.general.networkTimeoutDecrease': '30 秒減らす',
   'settings.general.networkTimeoutIncrease': '30 秒増やす',
