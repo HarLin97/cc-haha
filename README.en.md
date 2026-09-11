@@ -110,6 +110,41 @@ See [environment variables](docs/en/cli/env.md) and [CLI setup](docs/en/cli/inde
 
 ---
 
+## User Group
+
+Scan the QR code below to join the cc-haha user group on WeCom (WeChat Work) — the conversation there is mostly in Chinese. For questions and bug reports in English, [Issues](https://github.com/NanmiCoder/cc-haha/issues) is the better place. For enterprise deployment, customization, or Agent development needs, contact the author [NanmiCoder](https://github.com/NanmiCoder).
+
+<p align="center">
+  <img src="docs/images/community/wechat-group-qr.png" width="300" alt="cc-haha WeCom user group QR code">
+</p>
+
+---
+
+## ☕ Buy Me a Coffee
+
+If this project helps you, consider buying me a coffee — every bit of support keeps this project going ❤️
+
+<table>
+<tr>
+<td align="center" width="33%">
+<img src="docs/images/donate/wechat_pay.jpeg" width="250" alt="WeChat Pay"><br>
+<b>WeChat Pay</b>
+</td>
+<td align="center" width="33%">
+<img src="docs/images/donate/zfb_pay.png" width="250" alt="Alipay"><br>
+<b>Alipay</b>
+</td>
+<td align="center" width="33%">
+<a href="https://buymeacoffee.com/relakkes" target="_blank">
+<img src="docs/images/donate/bmc_button.png" width="250" alt="Buy Me a Coffee">
+</a><br>
+<b>Buy Me a Coffee</b>
+</td>
+</tr>
+</table>
+
+---
+
 ## Desktop Highlights
 
 - **Multi-session workspace**: tabs, project switching, terminal entry, and session history in one place, with a resizable sidebar.
@@ -147,41 +182,6 @@ Full documentation site: <https://cchaha.ai>
 | **IM integrations** | [Overview and pairing](docs/en/im/index.md) · [Feishu](docs/en/im/feishu.md) · [Telegram](docs/en/im/telegram.md) · [WeChat](docs/en/im/wechat.md) · [DingTalk](docs/en/im/dingtalk.md) · [WhatsApp](docs/en/im/whatsapp.md) |
 | **CLI** | [Install and run](docs/en/cli/index.md) · [Command reference](docs/en/cli/reference.md) · [Environment variables](docs/en/cli/env.md) |
 | **Internals** | [Desktop architecture](docs/en/internals/desktop.md) · [Multi-agent system](docs/en/internals/agent.md) · [Skills system](docs/en/internals/skills.md) · [Memory system](docs/en/internals/memory.md) · [Computer Use architecture](docs/en/internals/computer-use.md) · [Local server and API](docs/en/internals/server.md) · [Channel system](docs/en/internals/channel.md) · [Project structure](docs/en/internals/structure.md) · [Contributing and quality gates](docs/en/internals/contributing.md) |
-
----
-
-## ☕ Buy Me a Coffee
-
-If this project helps you, consider buying me a coffee — every bit of support keeps this project going ❤️
-
-<table>
-<tr>
-<td align="center" width="33%">
-<img src="docs/images/donate/wechat_pay.jpeg" width="250" alt="WeChat Pay"><br>
-<b>WeChat Pay</b>
-</td>
-<td align="center" width="33%">
-<img src="docs/images/donate/zfb_pay.png" width="250" alt="Alipay"><br>
-<b>Alipay</b>
-</td>
-<td align="center" width="33%">
-<a href="https://buymeacoffee.com/relakkes" target="_blank">
-<img src="docs/images/donate/bmc_button.png" width="250" alt="Buy Me a Coffee">
-</a><br>
-<b>Buy Me a Coffee</b>
-</td>
-</tr>
-</table>
-
----
-
-## User Group
-
-Scan the QR code below to join the cc-haha user group on WeCom (WeChat Work) — the conversation there is mostly in Chinese. For questions and bug reports in English, [Issues](https://github.com/NanmiCoder/cc-haha/issues) is the better place. For enterprise deployment, customization, or Agent development needs, contact the author [NanmiCoder](https://github.com/NanmiCoder).
-
-<p align="center">
-  <img src="docs/images/community/wechat-group-qr.png" width="300" alt="cc-haha WeCom user group QR code">
-</p>
 
 ---
 
